@@ -1,0 +1,976 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Облік харчування ЗДО</title>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: шапка з вкладками, далі робочі аркуші — картки днів із прийомами їжі, таблиці з горизонтальним прокручуванням */
+:root{
+  --bg:#f3f6fa; --paper:#ffffff; --ink:#17212b; --muted:#5a6878; --line:#d8e0ea; --soft:#eaf0f6;
+  --accent:#1f6fa8; --accent-ink:#ffffff; --accent-soft:#dceaf6; --sun:#fff0c4;
+  --ok:#1f7a4d; --ok-soft:#dcf1e5; --warn:#a85a12; --warn-soft:#fbead6; --bad:#b3261e; --bad-soft:#fbe0de; --hl:#fff4c2;
+  --f-display:"Unbounded","Golos Text",system-ui,sans-serif;
+  --f-body:"Golos Text",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10161d; --paper:#17202a; --ink:#e2eaf2; --muted:#9aabbd; --line:#2a3846; --soft:#1d2935;
+  --accent:#6fb4e8; --accent-ink:#0b1622; --accent-soft:#1c3347; --sun:#3a3218;
+  --ok:#6fd39c; --ok-soft:#173a29; --warn:#f0a86b; --warn-soft:#3a2818; --bad:#ff8a80; --bad-soft:#3d1c1a; --hl:#3a3418; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10161d; --paper:#17202a; --ink:#e2eaf2; --muted:#9aabbd; --line:#2a3846; --soft:#1d2935;
+  --accent:#6fb4e8; --accent-ink:#0b1622; --accent-soft:#1c3347; --sun:#3a3218;
+  --ok:#6fd39c; --ok-soft:#173a29; --warn:#f0a86b; --warn-soft:#3a2818; --bad:#ff8a80; --bad-soft:#3d1c1a; --hl:#3a3418; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 60px}
+header.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;justify-content:space-between}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(22px,4vw,30px);margin:0;letter-spacing:-.01em;text-wrap:balance}
+h1 .tag{display:inline-block;font-size:.5em;vertical-align:middle;background:var(--sun);color:var(--ink);border-radius:999px;padding:3px 10px;margin-left:6px;font-weight:500;letter-spacing:.02em}
+.sub{color:var(--muted);margin:4px 0 0;max-width:70ch}
+.status{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.dot.ok{background:var(--ok)}
+nav.tabs{display:flex;gap:2px;margin:18px 0 16px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav.tabs button{font:inherit;font-weight:600;background:none;border:0;color:var(--muted);padding:10px 12px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
+.banner{background:var(--hl);border-radius:var(--r);padding:12px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.banner p{margin:0;max-width:75ch}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.between{justify-content:space-between}
+.btn{font:inherit;font-weight:600;font-size:14px;border-radius:8px;padding:8px 14px;border:1px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.ghost{background:none;border-color:transparent;color:var(--muted)}
+.btn.danger{color:var(--bad)}
+.btn.sm{padding:4px 10px;font-size:13px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:6px 8px;min-width:0}
+textarea{width:100%;min-height:70px;resize:vertical}
+input[type=number]{width:84px;text-align:right;font-variant-numeric:tabular-nums}
+.monthnav{display:flex;align-items:center;gap:6px}
+.monthnav strong{font-family:var(--f-display);font-weight:500;font-size:18px;min-width:170px;text-align:center}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:14px 0}
+.stat{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px;min-width:0}
+.dayhead{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between}
+.daycost{font-weight:700;font-variant-numeric:tabular-nums}
+.kids{display:flex;flex-wrap:wrap;gap:8px 16px;margin:12px 0}
+.kids label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:3px}
+.kfix{font-size:18px;color:var(--ink);font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:6px}
+.kfix small{font-size:11px;color:var(--accent);font-weight:600}
+.meals{display:grid;gap:8px}
+.meal{display:grid;grid-template-columns:150px 1fr;gap:8px;align-items:start;padding:8px 0;border-top:1px dashed var(--line)}
+.meal .mlab{font-weight:600;padding-top:5px}
+.meal .mlab small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+@media (max-width:600px){.meal{grid-template-columns:1fr}}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--accent-soft);border-radius:999px;padding:4px 6px 4px 12px;font-weight:500;font-size:14px}
+.chip button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:0 4px}
+.pc{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted);margin-top:10px}
+.pc b{color:var(--ink);font-variant-numeric:tabular-nums}
+details{margin-top:10px}
+summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:14px}
+.tw{overflow-x:auto;margin-top:8px;border:1px solid var(--line);border-radius:8px;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{background:var(--soft);font-weight:600;font-size:12px;color:var(--muted);vertical-align:bottom}
+th:first-child,td:first-child{text-align:left}
+td.name,td.l,th.l{white-space:normal;min-width:140px;text-align:left}
+tr.tot td{font-weight:700;background:var(--soft)}
+td.calc{background:var(--soft)}
+td.neg{color:var(--bad);font-weight:700}
+td input[type=number]{width:72px}
+.hint{font-size:13px;color:var(--muted);max-width:78ch}
+.empty{text-align:center;padding:30px 14px;color:var(--muted)}
+.confirm{display:inline-flex;gap:6px;align-items:center;font-size:13px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
+.toast.on{opacity:1}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+h2{font-family:var(--f-display);font-weight:500;font-size:18px;margin:6px 0 10px;text-wrap:balance}
+h3{font-size:15px;margin:4px 0 8px}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.fields label,.lab{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.chk{display:inline-flex;flex-direction:row!important;align-items:center;gap:6px;font-size:14px!important;color:var(--ink)!important;cursor:pointer}
+.chk input{width:16px;height:16px;accent-color:var(--accent)}
+.pill{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 10px;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.mut{background:var(--soft);color:var(--muted)}
+td.ok{background:var(--ok-soft)} td.warn{background:var(--warn-soft)} td.bad{background:var(--bad-soft)}
+.badge{display:inline-block;font-size:11px;font-weight:600;color:var(--warn);background:var(--warn-soft);border-radius:999px;padding:1px 8px;margin-left:4px;white-space:nowrap}
+.infobox{background:var(--warn-soft);border-radius:var(--r);padding:12px 14px;margin:10px 0;display:grid;gap:8px}
+.infobox p{margin:0;max-width:80ch}
+.law{background:var(--sun);border-radius:var(--r);padding:12px 14px;margin:10px 0;font-size:14px}
+.law p{margin:0 0 4px;max-width:85ch}
+.law ul{margin:4px 0 0;padding-left:20px}
+.flow{margin:0;padding-left:20px;display:grid;gap:2px;font-size:14px}
+.pn{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}
+/* табель */
+.tab td,.tab th{padding:4px 6px}
+.tab td.c{text-align:center}
+.tab input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);cursor:pointer}
+.tab th.d{text-align:center;font-size:11px;line-height:1.2}
+.tab th.d button{font:inherit;font-size:11px;border:0;background:none;color:var(--accent);cursor:pointer;padding:0;text-decoration:underline}
+.tab td:first-child,.tab th:first-child{position:sticky;left:0;background:var(--paper);z-index:1}
+.tab th:first-child{background:var(--soft)}
+.tab td.name select{max-width:200px;font-size:12px;padding:2px 4px}
+.gsel{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.gsel button{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.gsel button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.gsel button small{opacity:.75;margin-left:4px}
+/* меню-каталог */
+.dish{padding:0;overflow:hidden}
+.dhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:var(--accent-soft);padding:10px 14px}
+.dish.open .dhead{border-bottom:1px solid var(--line)}
+.dnum{display:inline-grid;place-items:center;min-width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:13px}
+.dhead .dname{flex:1 1 200px;font-weight:700;font-size:16px;max-width:360px;background:var(--paper)}
+.dmeta{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.dact{display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap}
+.dbody{padding:12px 14px;display:grid;gap:10px}
+.dprops{display:flex;flex-wrap:wrap;gap:10px 16px}
+.dprops label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
+.dprops .pair{display:flex;gap:4px}
+.dprops .pair input{width:68px}
+.mt input.pname{width:100%;min-width:150px}
+.mt select{font-size:13px;max-width:190px}
+.mt th.g{text-align:center;border-left:1px solid var(--line)}
+.mt td.n{width:30px;text-align:center;color:var(--muted)}
+table.stock th.g{text-align:center;border-left:1px solid var(--line)}
+table.stock td.sum{color:var(--muted)}
+table.stock td.calc.sum{color:var(--ink)}
+table.stock td input[type=number]{width:70px}
+tr.opened td{background:var(--accent-soft)}
+tr.buyrow>td{background:var(--soft);white-space:normal;text-align:left;padding:12px}
+.buybox{display:grid;grid-template-columns:minmax(220px,1fr) minmax(0,2fr);gap:18px;position:sticky;left:12px;max-width:min(1100px,calc(100vw - 64px))}
+@media (max-width:760px){.buybox{grid-template-columns:1fr}}
+.buybox>div{display:grid;gap:8px;align-content:start;min-width:0}
+.bstart label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
+.bwrap{overflow-x:auto;max-width:100%}
+table.buys{width:auto;background:var(--paper);border:1px solid var(--line);border-radius:6px}
+table.buys td,table.buys th{text-align:left}
+table.buys input[type=number]{width:90px}
+.wk td{vertical-align:top;text-align:left;white-space:normal;min-width:150px}
+.wk td.day{font-weight:700;white-space:nowrap;min-width:110px}
+.wk .it{margin-bottom:4px}
+.wk .it small{color:var(--muted);display:block}
+.br td{vertical-align:middle}
+.br td input[type=time]{width:100px}
+.br td input.org{width:100%;min-width:220px}
+.lst{display:grid;gap:6px}
+.lst .li{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.lst .li input[type=text],.lst .li input:not([type]){flex:1 1 220px}
+.credit{font-family:var(--f-display);font-weight:500;font-size:14px;color:var(--ink);margin-bottom:4px}
+footer{margin-top:30px;font-size:12px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Облік харчування <span class="tag">ЗДО</span></h1>
+      <p class="sub">Для закладів дошкільної освіти за постановою КМУ № 305: меню за прийомами їжі, табель, розхід продуктів, перевірка норм і бракераж.</p>
+    </div>
+    <div class="status" id="status"><span class="dot"></span><span>Завантаження…</span></div>
+  </header>
+  <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" data-tab="journal">Журнал місяця</button>
+    <button role="tab" data-tab="tabel">Табель</button>
+    <button role="tab" data-tab="stock">Розхід продуктів</button>
+    <button role="tab" data-tab="norms">Норми 305</button>
+    <button role="tab" data-tab="brak">Бракераж</button>
+    <button role="tab" data-tab="week">Меню на тиждень</button>
+    <button role="tab" data-tab="summary">Підсумок</button>
+    <button role="tab" data-tab="menu">Страви</button>
+    <button role="tab" data-tab="settings">Заклад</button>
+  </nav>
+  <div id="banner"></div>
+  <main id="main"></main>
+  <footer><div class="credit">Створено © Галина Гайдай</div><div>Дані зберігаються лише в цьому браузері. Робіть резервну копію у вкладці «Заклад».</div></footer>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+/* ================= довідники ================= */
+const AG=[{c:'Ясла (1–4 роки)',a:'Ясла',s:'1–4'},{c:'Садок (4–6(7) років)',a:'Садок',s:'4–6(7)'}];
+const MEALS={b:'Сніданок',b2:'Другий сніданок',l:'Обід',s:'Підвечірок',d:'Вечеря'};
+const MORDER=['b','b2','l','s','d'];
+const MTIME={b:'08:30',b2:'10:30',l:'12:30',s:'15:00',d:'16:30'};
+/* Норми з Додатка 1 до Норм харчування (постанова КМУ № 305), ЗДО, 5-денне перебування, сніданок–обід–вечеря.
+   p — порцій на тиждень, m — маса нетто порції [1–4 р., 4–6(7) р.], t: tol — ±10%, cnt — рахуються порції, lim — виконано, якщо ≥50% і не більше норми */
+const NDEF=[
+  {k:'veg',n:'Овочі (крім картоплі)',p:15,m:[60,80],u:'г',t:'tol',src:'dish'},
+  {k:'fruit',n:'Фрукти та ягоди',p:10,m:[60,80],u:'г',t:'tol'},
+  {k:'juice',n:'Соки фруктові/овочеві',p:2,m:[120,180],u:'мл',t:'tol'},
+  {k:'dried',n:'Фрукти та ягоди сушені',p:3,m:[20,25],u:'г',t:'tol'},
+  {k:'cereal',n:'Злакові, зернові, бобові (готова страва)',p:15,m:[80,100],u:'г',t:'tol'},
+  {k:'potato',n:'Картопля',p:4,m:[80,100],u:'г',t:'tol'},
+  {k:'bread',n:'Хліб цільнозерновий',p:10,m:[30,30],u:'г',t:'tol'},
+  {k:'fish',n:'Риба морська',p:2,m:[40,60],u:'г',t:'tol'},
+  {k:'poultry',n:'Птиця (без шкіри і кісток)',p:6,m:[45,60],u:'г',t:'tol'},
+  {k:'meat',n:'Свинина, телятина, яловичина',p:2,m:[45,60],u:'г',t:'tol'},
+  {k:'egg',n:'Яйця',p:2,m:[1,1],u:'шт',t:'tol'},
+  {k:'milk',n:'Молоко та молочні продукти',p:12,m:[0,0],u:'порц.',t:'cnt'},
+  {k:'butter',n:'Масло вершкове',p:15,m:[2,2.5],u:'г',t:'tol'},
+  {k:'oil',n:'Олія рафінована',p:15,m:[4.33,4.83],u:'г',t:'tol'},
+  {k:'salt',n:'Сіль йодована',p:15,m:[0.7,1],u:'г',t:'lim'},
+  {k:'sugar',n:'Цукор',p:10,m:[8.75,8.75],u:'г',t:'lim'},
+  {k:'cocoa',n:'Какао',p:2,m:[5,6],u:'г',t:'lim'},
+  {k:'tea',n:'Чай без кофеїну',p:2,m:[0.2,0.3],u:'г',t:'lim'},
+];
+const NOTE={milk:'10 порцій на сніданок і вечерю + 2 на обід. Порція: молоко 150/200 мл, йогурт чи кефір 100/125 мл, сир кисломолочний 100/125 г, сир твердий 10/15 г, сметана 15/25 г.',
+  oil:'10 порцій соняшникової чи кукурудзяної (4 / 4,5 г) і 5 порцій іншої олії на обід (5 / 5,5 г); тут — середня маса порції.',
+  sugar:'Дітям до 3 років цукор не додається. Далі — 7,5 г на сніданок і вечерю, 10 г на обід.',
+  cereal:'Рахується маса готової страви. Бобові — не менше 3 разів на тиждень.',
+  potato:'Одна страва з картоплі на 4–5 страв зі злакових чи бобових.',
+  veg:'Разом із зеленню. Квашені овочі — лише для 4–6(7) років, до 3 разів на тиждень.'};
+/* енергетична цінність, ккал */
+const KC={b:[[350,415],[425,510]],d:[[350,415],[425,510]],l:[[415,485],[510,595]],day:[1385,1700]};
+const DEF_CATS=[['Діти з малозабезпечених сімей',100],['Діти-сироти та позбавлені батьківського піклування',100],['Діти з інвалідністю',100],['Діти внутрішньо переміщених осіб',100],['Діти захисників України',100],['Діти з багатодітних сімей',50]];
+
+const MONTHS=['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
+const MONTHS_LOC=['січні','лютому','березні','квітні','травні','червні','липні','серпні','вересні','жовтні','листопаді','грудні'];
+const MONTHS_GEN=['січень','лютий','березень','квітень','травень','червень','липень','серпень','вересень','жовтень','листопад','грудень'];
+const WDS=['нд','пн','вт','ср','чт','пт','сб'];
+const uid=()=>Math.random().toString(36).slice(2,9);
+const num=v=>{const n=parseFloat(String(v??'').replace(',','.'));return isFinite(n)?n:0};
+const fmt=(n,d=2)=>Number(n||0).toLocaleString('uk-UA',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtq=(n,d=3)=>Number(n||0).toLocaleString('uk-UA',{maximumFractionDigits:d});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const isoD=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const dmy=s=>s?s.split('-').reverse().join('.'):'';
+const today=new Date();
+const curKey=`${today.getFullYear()}-${pad(today.getMonth()+1)}`;
+const shiftKey=(k,d)=>{let[y,m]=k.split('-').map(Number);m+=d;while(m>12){m-=12;y++}while(m<1){m+=12;y--}return `${y}-${pad(m)}`};
+const monthLabel=k=>{const[y,m]=k.split('-').map(Number);return `${MONTHS[m-1]} ${y}`};
+const wday=s=>WDS[new Date(s+'T12:00').getDay()];
+const normName=v=>String(v||'').replace(/[’ʼ`']/g,'ʼ').replace(/\s+/g,' ').trim().toLowerCase();
+
+/* ================= приклад ================= */
+function exampleData(){
+  const D=(name,meal,ng,out,kcal,alg,items)=>({id:uid(),name,meal,ng,out,kcal,alg,items:items.map(([p,a,an,b,bn])=>({p,g:[a,b],n:[an??'',bn??'']}))});
+  const dishes=[
+    D('Каша вівсяна молочна','b','cereal',[150,180],[160,195],'Г, М',[['пластівці вівсяні',22,null,27,null],['молоко',100,null,120,null],['масло вершкове',2,null,2.5,null],['сіль',0.2,null,0.3,null]]),
+    D('Хліб цільнозерновий','b','',[30,30],[70,70],'Г',[['хліб цільнозерновий',30,null,30,null]]),
+    D('Какао з молоком','b','',[150,200],[120,155],'М',[['какао',5,null,6,null],['молоко',150,null,200,null]]),
+    D('Суп овочевий','l','',[150,200],[85,110],'',[['картопля',40,30,50,38],['морква',15,12,20,16],['цибуля ріпчаста',8,7,10,8],['капуста білоголова',25,20,32,26],['олія соняшникова',2,null,2.5,null],['сіль',0.2,null,0.3,null]]),
+    D('Котлета куряча парова','l','',[60,75],[110,140],'Г, Я',[['філе куряче',50,45,66,60],['батон',8,null,10,null],['яйце',0.1,null,0.12,null],['сіль',0.15,null,0.2,null]]),
+    D('Гречка розсипчаста','l','cereal',[80,100],[105,130],'',[['крупа гречана',30,null,38,null],['масло вершкове',2,null,2.5,null],['сіль',0.15,null,0.2,null]]),
+    D('Салат з буряка з олією','l','veg',[60,80],[50,65],'',[['буряк столовий',72,60,96,80],['олія соняшникова',3,null,3.5,null]]),
+    D('Компот із сухофруктів','l','',[150,180],[60,75],'',[['сухофрукти',20,null,25,null],['цукор',5,null,7,null]]),
+    D('Сирники запечені зі сметаною','d','',[110,140],[230,300],'М, Г, Я',[['сир кисломолочний',75,null,95,null],['борошно пшеничне',8,null,10,null],['яйце',0.1,null,0.15,null],['цукор',4,null,5,null],['сметана',15,null,25,null]]),
+    D('Яблуко свіже','d','fruit',[60,80],[30,40],'',[['яблуко',70,60,95,80]]),
+    D('Кефір','d','',[100,125],[55,70],'М',[['кефір',100,null,125,null]]),
+  ];
+  const P=(unit,price,grp)=>({unit,price,grp});
+  const products={'пластівці вівсяні':P('г',45,''),'молоко':P('г',38,'milk'),'масло вершкове':P('г',380,'butter'),'сіль':P('г',14,'salt'),'хліб цільнозерновий':P('г',70,'bread'),'какао':P('г',420,'cocoa'),
+    'картопля':P('г',18,'potato'),'морква':P('г',20,'veg'),'цибуля ріпчаста':P('г',22,'veg'),'капуста білоголова':P('г',16,'veg'),'олія соняшникова':P('г',78,'oil'),'філе куряче':P('г',210,'poultry'),'батон':P('г',50,''),
+    'яйце':P('шт',5.2,'egg'),'крупа гречана':P('г',60,''),'буряк столовий':P('г',18,'veg'),'сухофрукти':P('г',160,'dried'),'цукор':P('г',34,'sugar'),'сир кисломолочний':P('г',180,'milk'),'борошно пшеничне':P('г',24,''),
+    'сметана':P('г',160,'milk'),'яблуко':P('г',30,'fruit'),'кефір':P('г',45,'milk')};
+  const groups=[['Сонечко',0,18],['Бджілка',1,24],['Зірочка',1,25]].map(([name,age,total],i)=>({id:uid(),name,age,total,mixed:i===2}));
+  const cats=DEF_CATS.map(([n,d])=>({id:uid(),n,d}));
+  const kids=['Дитина 1','Дитина 2','Дитина 3','Дитина 4','Дитина 5','Дитина 6'].map((n,i)=>({id:uid(),name:n+' (приклад)',grp:groups[0].id,cat:i===1?cats[0].id:i===4?cats[5].id:''}));
+  const k=curKey,[y,m]=k.split('-');
+  const id=n=>dishes[n].id;
+  const day=(dd,ent,cnt)=>({id:uid(),date:`${y}-${m}-${dd}`,dishes:ent.map(([n,ml])=>({id:id(n),m:ml})),kids:[0,0],cnt:{[groups[0].id]:cnt[0],[groups[1].id]:cnt[1],[groups[2].id+':0']:Math.round(cnt[2]/3),[groups[2].id+':1']:cnt[2]-Math.round(cnt[2]/3)}});
+  const days=[day('01',[[0,'b'],[1,'b'],[2,'b'],[3,'l'],[4,'l'],[5,'l'],[6,'l'],[7,'l'],[8,'d'],[10,'d']],[15,21,22]),
+              day('02',[[0,'b'],[1,'b'],[3,'l'],[4,'l'],[5,'l'],[7,'l'],[9,'d'],[10,'d']],[14,22,20])];
+  const tab={[days[0].id]:{['g:'+groups[0].id]:1,...Object.fromEntries(kids.slice(0,5).map(x=>[x.id,1]))}};
+  const B=(q,pr)=>({buys:[{id:uid(),q,pr,date:`${y}-${m}-01`}]});
+  const stock={'пластівці вівсяні':B(3,45),'молоко':B(30,38),'масло вершкове':B(1,380),'сіль':B(1,14),'хліб цільнозерновий':B(4,70),'какао':B(0.5,420),'картопля':B(10,18),'морква':B(3,20),'цибуля ріпчаста':B(2,22),'капуста білоголова':B(4,16),
+    'олія соняшникова':B(2,78),'філе куряче':B(5,210),'батон':B(1,50),'яйце':B(30,5.2),'крупа гречана':B(3,60),'буряк столовий':B(5,18),'сухофрукти':B(2,160),'цукор':B(2,34),'сир кисломолочний':B(6,180),'борошно пшеничне':B(1,24),'сметана':B(1.5,160),'яблуко':B(5,30),'кефір':B(10,45)};
+  const brak={[days[0].id]:{}};
+  days[0].dishes.forEach((e,i)=>brak[days[0].id][i]={t:MTIME[e.m],r:'ok',o:'',p:1});
+  return {meta:{v:1,products,dishes,months:[k],groups,kids,cats,meals:['b','l','d'],fee:{mode:'pct',pct:60,fix:[0,0]},norms:{},
+    inst:'',head:'',resp:'',nurse:'',accountant:'',comm:'',legend:'Г — глютен; М — молоко та молочні продукти; Я — яйця (приклад, звірте з додатком 13 до Норм)',costMethod:'fifo'},
+    months:{[k]:{days,stock,tab,brak}}};
+}
+
+/* ================= стан і збереження ================= */
+let S={meta:null,months:{},cur:curKey,tab:'journal',example:true,confirm:null,tg:null,wk:0,bday:null,openDish:null,openBuys:null};
+(()=>{const e=exampleData();S.meta=e.meta;S.months=e.months})();
+try{const t=localStorage.getItem('zdo_tab');if(t)S.tab=t}catch(e){}
+const LS={get(k){try{const r=localStorage.getItem('zdo_'+k);return r?JSON.parse(r):null}catch(e){return null}},set(k,v){localStorage.setItem('zdo_'+k,JSON.stringify(v))}};
+let canStore=true;try{localStorage.setItem('zdo_t','1');localStorage.removeItem('zdo_t')}catch(e){canStore=false}
+let dirty=new Set(),saveT=null,COST={};
+function touch(...keys){
+  if(S.example){S.example=false;dirty.add('meta');Object.keys(S.months).forEach(k=>dirty.add('m-'+k));renderBanner()}
+  COST={};keys.forEach(k=>dirty.add(k));
+  clearTimeout(saveT);saveT=setTimeout(flush,600);setStatus('Зберігаю…',false);
+}
+function flush(){
+  if(!canStore){setStatus('Браузер не дозволяє зберігати дані. Зробіть резервну копію',false);return}
+  const keys=[...dirty];dirty.clear();
+  try{
+    keys.forEach(k=>{if(k==='meta')LS.set('meta',S.meta);else{const mk=k.slice(2),m=S.months[mk];if(m){COST={};const c=costing(mk);m.end={};m.endLots={};Object.entries(c.prod).forEach(([p,r])=>{m.end[p]=+r.endQ.toFixed(4);if(r.endLots.length)m.endLots[p]=r.endLots});LS.set(k,m)}}});
+    setStatus('Збережено в цьому браузері',true);
+  }catch(e){keys.forEach(k=>dirty.add(k));setStatus('Не вдалося зберегти: можливо, закінчилося місце. Зробіть резервну копію',false)}
+}
+function setStatus(t,ok){document.getElementById('status').innerHTML=`<span class="dot ${ok?'ok':''}"></span><span>${esc(t)}</span>`}
+function loadSaved(){
+  const meta=LS.get('meta');
+  if(!meta){setStatus(canStore?'Приклад. Почніть редагувати — усе збережеться':'Сховище недоступне',canStore);return}
+  applyData(meta,Object.fromEntries((meta.months||[]).map(k=>[k,LS.get('m-'+k)]).filter(([,v])=>v)));
+  setStatus('Збережено в цьому браузері',true);
+}
+function applyData(meta,months){
+  S.meta=meta;S.months=months||{};S.example=false;
+  const M=S.meta;M.months=M.months||[];M.products=M.products||{};M.dishes=M.dishes||[];M.groups=M.groups||[];M.kids=M.kids||[];M.cats=M.cats||DEF_CATS.map(([n,d])=>({id:uid(),n,d}));
+  M.meals=M.meals||['b','l','d'];M.fee=M.fee||{mode:'pct',pct:60,fix:[0,0]};M.norms=M.norms||{};
+  M.dishes.forEach(d=>{d.out=d.out||[0,0];d.kcal=d.kcal||['',''];d.items.forEach(it=>{it.p=normName(it.p);it.n=it.n||['','']})});
+  Object.values(S.months).forEach(m=>{m.days=m.days||[];m.stock=m.stock||{};m.tab=m.tab||{};m.brak=m.brak||{}});
+}
+
+/* ================= розрахунки ================= */
+function month(k=S.cur){if(!S.months[k])S.months[k]={days:[],stock:{},tab:{},brak:{}};const m=S.months[k];m.tab=m.tab||{};m.brak=m.brak||{};return m}
+function ensureMonthListed(k){if(!S.meta.months.includes(k)){S.meta.months.push(k);S.meta.months.sort();touch('meta')}}
+const dishById=id=>S.meta.dishes.find(d=>d.id===id);
+const unitOf=p=>(S.meta.products[p]?.unit)||'г';
+const isPcs=p=>unitOf(p)==='шт';
+const isGr=p=>unitOf(p)==='гр';
+const su=p=>isPcs(p)?'шт':isGr(p)?'г':'кг';
+const UNITS=[['г','кг'],['гр','г'],['шт','шт']];
+const toStock=(p,q)=>isPcs(p)||isGr(p)?q:q/1000;
+const grpP=p=>(S.meta.products[p]?.grp)||'';
+const MEAL_ON=()=>MORDER.filter(m=>S.meta.meals.includes(m));
+const GR=()=>S.meta.groups;
+const kidsOf=gid=>S.meta.kids.filter(x=>x.grp===gid);
+const sortDays=m=>[...m.days].sort((a,b)=>a.date.localeCompare(b.date));
+/* кількість дітей групи за день: з табеля, якщо його заповнено, інакше — введене в журналі */
+function fromTab(day,g,k=S.cur){const t=month(k).tab[day.id];return !!(t&&t['g:'+g.id]&&kidsOf(g.id).length)}
+/* вік дитини: у різновіковій групі — свій, інакше — вік групи */
+const ageOf=(kid,g)=>g&&g.mixed&&(kid.age===0||kid.age===1)?kid.age:(g?g.age:1);
+const gLabel=g=>g.mixed?'різновікова':AG[g.age].a;
+/* кількість дітей групи за день по вікових категоріях [ясла, садок] */
+function grpAges(day,g,k=S.cur){const r=[0,0];
+  if(fromTab(day,g,k)){const t=month(k).tab[day.id];kidsOf(g.id).forEach(x=>{if(t[x.id])r[ageOf(x,g)]++});return r}
+  const c=day.cnt||{};if(g.mixed){r[0]=num(c[g.id+':0']);r[1]=num(c[g.id+':1']);return r}
+  r[g.age]=num(c[g.id]);return r}
+const grpCount=(day,g,k=S.cur)=>{const r=grpAges(day,g,k);return r[0]+r[1]};
+function K(day,k=S.cur){if(!GR().length)return [num(day.kids?.[0]),num(day.kids?.[1])];const r=[0,0];GR().forEach(g=>{const a=grpAges(day,g,k);r[0]+=a[0];r[1]+=a[1]});return r}
+function buysOf(p,k=S.cur){const st=month(k).stock[p];return st&&Array.isArray(st.buys)?st.buys:[]}
+function priceOf(p,k=S.cur){const b=buysOf(p,k).filter(x=>num(x.pr));if(b.length)return num(b[b.length-1].pr);const c=COST[k]&&COST[k].prod[p];if(c&&c.lastPr)return c.lastPr;return num(S.meta.products[p]?.price)}
+function dayUse(day,k=S.cur){const kids=K(day,k),u={};(day.dishes||[]).forEach(e=>{const d=dishById(e.id);if(!d)return;d.items.forEach(it=>{if(!it.p)return;const q=it.g.reduce((s,v,i)=>s+num(v)*num(kids[i]),0);u[it.p]=(u[it.p]||0)+toStock(it.p,q)})});return u}
+/* партії: залишок + надходження → витрата за ФІФО або за середньою ціною */
+function costing(k=S.cur){
+  if(COST[k])return COST[k];
+  const res={unit:{},prod:{}};COST[k]=res;
+  const m=month(k),avg=S.meta.costMethod==='avg';
+  const uses=sortDays(m).map(d=>[d.id,dayUse(d,k)]);
+  const pk=shiftKey(k,-1),pm=S.months[pk];
+  let prev=null;if(pm&&((pm.days&&pm.days.length)||Object.keys(pm.stock||{}).length))prev=costing(pk).prod;
+  const prevLots=p=>{if(prev)return (prev[p]&&prev[p].endLots)||[];if(pm&&pm.endLots&&pm.endLots[p])return pm.endLots[p];return []};
+  const ps=new Set(Object.keys(m.stock||{}));uses.forEach(([,u])=>Object.keys(u).forEach(p=>ps.add(p)));
+  if(prev)Object.entries(prev).forEach(([p,v])=>{if(Math.abs(v.endQ)>1e-9)ps.add(p)});else if(pm&&pm.endLots)Object.keys(pm.endLots).forEach(p=>ps.add(p));
+  const ref=p=>{const b=buysOf(p,k).filter(x=>num(x.pr));return b.length?num(b[b.length-1].pr):num(S.meta.products[p]?.price)};
+  ps.forEach(p=>{
+    const st=(m.stock||{})[p]||{},manual=st.start!==undefined&&st.start!=='';
+    const open=manual?(num(st.start)?[{q:num(st.start),pr:num(st.startPr)||ref(p)}]:[]):prevLots(p).map(x=>({q:num(x.q),pr:num(x.pr)}));
+    const buys=buysOf(p,k).map((b,i)=>({q:num(b.q),pr:num(b.pr)||ref(p),date:b.date||'',i})).filter(b=>b.q>0).sort((a,b)=>a.date.localeCompare(b.date)||a.i-b.i);
+    const r={startQ:0,startS:0,inQ:0,inS:0,usedQ:0,usedS:0,wrQ:0,wrS:0,short:0,manual};
+    open.forEach(x=>{r.startQ+=x.q;r.startS+=x.q*x.pr});buys.forEach(x=>{r.inQ+=x.q;r.inS+=x.q*x.pr});
+    let queue=[...open,...buys].map(x=>({q:x.q,pr:x.pr}));
+    let lastPr=queue.length?queue[queue.length-1].pr:ref(p);
+    if(avg){const Q=r.startQ+r.inQ,SS=r.startS+r.inS;lastPr=Q>0?SS/Q:ref(p);queue=Q>0?[{q:Q,pr:lastPr}]:[]}
+    const take=q=>{let cost=0,need=q;while(need>1e-9&&queue.length){const l=queue[0],t=Math.min(l.q,need);cost+=t*l.pr;l.q-=t;need-=t;if(l.q<=1e-9)queue.shift()}if(need>1e-9){cost+=need*lastPr;r.short+=need}return cost};
+    uses.forEach(([id,u])=>{const q=u[p];if(!q)return;const c=take(q);r.usedQ+=q;r.usedS+=c;(res.unit[id]||(res.unit[id]={}))[p]=c/q});
+    const w=num(st.written);if(w>0){r.wrQ=w;r.wrS=take(w)}
+    r.endLots=queue.filter(x=>x.q>1e-9).map(x=>({q:+x.q.toFixed(6),pr:x.pr}));
+    r.endQ=r.startQ+r.inQ-r.usedQ-r.wrQ;r.endS=r.startS+r.inS-r.usedS-r.wrS;r.lastPr=lastPr;
+    res.prod[p]=r;
+  });
+  return res;
+}
+const priceAt=(p,k,dayId)=>{const u=costing(k).unit[dayId];return u&&u[p]!==undefined?u[p]:priceOf(p,k)};
+function dayCalc(day,k=S.cur){
+  const kids=K(day,k),rows={},perChild=[0,0];
+  (day.dishes||[]).forEach(e=>{const d=dishById(e.id);if(!d)return;
+    d.items.forEach(it=>{if(!it.p)return;const r=rows[it.p]||(rows[it.p]={p:it.p,g:[0,0]});it.g.forEach((v,i)=>r.g[i]+=num(v))})});
+  let cost=0;
+  Object.values(rows).forEach(r=>{const pr=priceAt(r.p,k,day.id),div=isPcs(r.p)||isGr(r.p)?1:1000;
+    r.cost=r.g.map(v=>v*pr/div);r.total=r.g.reduce((s,v,i)=>s+v*num(kids[i]),0);r.sum=r.cost.reduce((s,v,i)=>s+v*num(kids[i]),0);
+    r.cost.forEach((v,i)=>perChild[i]+=v);cost+=r.sum});
+  return {rows:Object.values(rows).sort((a,b)=>a.p.localeCompare(b.p,'uk')),perChild,cost,kids};
+}
+function usedMap(k=S.cur){const u={};month(k).days.forEach(d=>dayCalc(d,k).rows.forEach(r=>u[r.p]=(u[r.p]||0)+toStock(r.p,r.total)));return u}
+function monthTotals(k=S.cur){const m=month(k);let cost=0;const kd=[0,0],gc=[0,0];
+  m.days.forEach(d=>{const c=dayCalc(d,k);cost+=c.cost;c.kids.forEach((n,i)=>{kd[i]+=num(n);gc[i]+=c.perChild[i]*num(n)})});
+  return {cost,kd,gc,days:m.days.length}}
+function allProducts(){const set=new Set(Object.keys(S.meta.products));S.meta.dishes.forEach(d=>d.items.forEach(i=>i.p&&set.add(i.p)));Object.keys(month().stock).forEach(p=>set.add(p));return [...set].filter(Boolean).sort((a,b)=>a.localeCompare(b,'uk'))}
+
+/* ---- плата батьків ---- */
+const catOf=id=>S.meta.cats.find(c=>c.id===id);
+function feePerDay(age,costPerChild){const f=S.meta.fee;return f.mode==='fix'?num(f.fix[age]):costPerChild*num(f.pct)/100}
+function kidFee(kid,k=S.cur){const g=GR().find(x=>x.id===kid.grp);if(!g)return {days:0,full:0,ben:0,pay:0};const m=month(k);let days=0,full=0;
+  m.days.forEach(d=>{const t=m.tab[d.id];if(t&&t[kid.id]){days++;const ag=ageOf(kid,g);full+=feePerDay(ag,dayCalc(d,k).perChild[ag])}});
+  const disc=num(catOf(kid.cat)?.d);const ben=full*disc/100;return {days,full,ben,pay:full-ben}}
+
+/* ---- норми 305 ---- */
+function NG(){const o=S.meta.norms||{};return NDEF.map(n=>{const x=o[n.k];return x?{...n,p:x.p??n.p,m:x.m?[num(x.m[0]),num(x.m[1])]:n.m}:n})}
+const netv=(it,i)=>{const n=it.n&&it.n[i];return n!==''&&n!==undefined&&n!==null?num(n):num(it.g[i])};
+function normFact(days){const F={};NG().forEach(n=>F[n.k]={p:[0,0],m:[0,0]});
+  days.forEach(day=>(day.dishes||[]).forEach(e=>{const d=dishById(e.id);if(!d)return;
+    [0,1].forEach(i=>{const dg=d.ng&&F[d.ng]?d.ng:'';
+      if(dg){F[dg].p[i]+=1;F[dg].m[i]+=num(d.out&&d.out[i])}
+      const seen=new Set();
+      d.items.forEach(it=>{if(!it.p)return;const g=grpP(it.p);if(!g||!F[g]||g===dg)return;const v=netv(it,i);if(!v)return;F[g].m[i]+=v;if(!seen.has(g)){F[g].p[i]+=1;seen.add(g)}});
+    })}));
+  return F}
+function normRows(days){const F=normFact(days),nd=days.length;
+  return NG().map(n=>{const f=F[n.k];return {n,cells:[0,1].map(i=>{
+    const tp=n.p*nd/5,tm=n.p*n.m[i]*nd/5,fact=n.t==='cnt'?f.p[i]:f.m[i],target=n.t==='cnt'?tp:tm;
+    const pct=target>0?fact/target*100:(fact>0?Infinity:0);let st;
+    if(!nd)st=['mut','—'];
+    else if(n.t==='lim'){st=target===0&&fact>0?['bad','Перевищення']:pct>110?['bad','Перевищення']:pct<50?['warn','Менше 50%']:['ok','Виконано']}
+    else st=pct<90?['bad','Нестача']:pct>110?['warn','Перевищення']:['ok','Норма'];
+    return {fp:f.p[i],tp,fact,target,pct,st}})}})}
+function weeksOfMonth(k=S.cur){const W={};sortDays(month(k)).forEach(d=>{const x=new Date(d.date+'T12:00');x.setDate(x.getDate()-((x.getDay()+6)%7));const key=isoD(x);(W[key]||(W[key]=[])).push(d)});return Object.entries(W).map(([mon,days])=>({mon,days}))}
+
+/* ================= рендер ================= */
+function render(){
+  COST={};
+  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===S.tab));
+  renderBanner();
+  const f={journal:rJournal,tabel:rTabel,stock:rStock,norms:rNorms,brak:rBrak,week:rWeek,summary:rSummary,menu:rMenu,settings:rSettings}[S.tab]||rJournal;
+  document.getElementById('main').innerHTML=f();
+}
+function renderBanner(){document.getElementById('banner').innerHTML=S.example?`<div class="banner"><p><b>Це приклад заповнення.</b> Групи, діти, ціни та страви умовні. Змініть під свій садочок або почніть із чистого аркуша.</p><button class="btn" data-act="clearAll">Почати з чистого</button></div>`:''}
+function monthNav(){return `<div class="monthnav"><button class="btn sm" data-act="mprev" aria-label="Попередній місяць">‹</button><strong>${monthLabel(S.cur)}</strong><button class="btn sm" data-act="mnext" aria-label="Наступний місяць">›</button></div>`}
+function confirmBtn(key,label,attrs){return S.confirm===key?`<span class="confirm">Точно? <button class="btn sm danger" ${attrs}>Так, ${label.toLowerCase()}</button><button class="btn sm ghost" data-act="cancel">Ні</button></span>`:`<button class="btn sm ghost danger" data-act="ask" data-k="${esc(key)}">${label}</button>`}
+const ngOpts=(sel,empty='— не входить у норми —')=>`<option value="">${empty}</option>`+NDEF.map(n=>`<option value="${n.k}" ${sel===n.k?'selected':''}>${esc(n.n)}</option>`).join('');
+
+/* ---- журнал ---- */
+function rJournal(){
+  const m=month(),t=monthTotals(),[y,mm]=S.cur.split('-'),last=new Date(+y,+mm,0).getDate();
+  const kdAll=t.kd[0]+t.kd[1];
+  const days=sortDays(m).map(day=>{
+    const c=dayCalc(day);
+    const opts=ml=>{const a=S.meta.dishes.filter(d=>d.meal===ml),b=S.meta.dishes.filter(d=>d.meal!==ml),o=l=>l.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+      return (a.length?`<optgroup label="${MEALS[ml]}">${o(a)}</optgroup>`:'')+(b.length?`<optgroup label="Інші страви">${o(b)}</optgroup>`:'')};
+    const meals=MEAL_ON().map(ml=>{
+      const chips=day.dishes.map((e,ix)=>{if(e.m!==ml)return '';const d=dishById(e.id);return d?`<span class="chip">${esc(d.name)}<button data-act="rmDish" data-day="${day.id}" data-ix="${ix}" aria-label="Прибрати ${esc(d.name)}">×</button></span>`:''}).join('');
+      return `<div class="meal"><div class="mlab">${MEALS[ml]}</div><div class="chips">${chips}<select data-f="addDish" data-day="${day.id}" data-m="${ml}" aria-label="Додати страву на ${MEALS[ml].toLowerCase()}"><option value="">+ Страва</option>${opts(ml)}</select></div></div>`}).join('');
+    const cin=(key,lab)=>`<label>${lab}<input type="number" min="0" step="1" value="${num((day.cnt||{})[key])||''}" placeholder="0" data-f="cnt" data-g="${key}" data-day="${day.id}"></label>`;
+    const kidsIn=GR().length?GR().map(g=>{if(fromTab(day,g)){const a=grpAges(day,g);return `<label>${esc(g.name)} · ${gLabel(g)}<span class="kfix">${g.mixed?`${a[0]} + ${a[1]}`:grpCount(day,g)} <small>з табеля</small></span></label>`}
+        return g.mixed?cin(g.id+':0',`${esc(g.name)} · ясла`)+cin(g.id+':1',`${esc(g.name)} · садок`):cin(g.id,`${esc(g.name)} · ${AG[g.age].a}`)}).join('')
+      :AG.map((a,i)=>`<label>${a.c}<input type="number" min="0" step="1" value="${num(day.kids?.[i])||''}" placeholder="0" data-f="kids" data-i="${i}" data-day="${day.id}"></label>`).join('');
+    const rows=c.rows.map(r=>`<tr><td class="name">${esc(r.p)}</td>${r.g.map((g,i)=>`<td>${fmtq(g)}</td><td>${fmt(r.cost[i])}</td>`).join('')}<td class="calc">${fmtq(toStock(r.p,r.total),3)} ${su(r.p)}</td><td class="calc">${fmt(r.sum)}</td></tr>`).join('');
+    return `<article class="card">
+      <div class="dayhead">
+        <div class="row"><input type="date" value="${day.date}" min="${y}-${mm}-01" max="${y}-${mm}-${pad(last)}" data-f="date" data-day="${day.id}" aria-label="Дата"><span class="hint">${new Date(day.date+'T12:00').toLocaleDateString('uk-UA',{weekday:'long'})}</span></div>
+        <div class="row"><span class="daycost">${fmt(c.cost)} грн</span><button class="btn sm" data-act="copyDay" data-day="${day.id}" title="Додати наступний день з тими самими стравами">Копіювати</button>${confirmBtn('day'+day.id,'Видалити день',`data-act="rmDay" data-day="${day.id}"`)}</div>
+      </div>
+      <div class="kids">${kidsIn}<label>Разом<span class="kfix">${c.kids[0]} + ${c.kids[1]}</span></label></div>
+      <div class="meals">${meals}</div>
+      ${c.rows.length?`<div class="pc">Вартість на 1 дитину: ${AG.map((a,i)=>`<span>${a.a}: <b>${fmt(c.perChild[i])} грн</b></span>`).join('')}</div>
+      <details><summary>Продукти за день (${c.rows.length})</summary><div class="tw"><table>
+        <thead><tr><th rowspan="2">Продукт</th>${AG.map(a=>`<th colspan="2" style="text-align:center">${a.a}</th>`).join('')}<th rowspan="2">Видано</th><th rowspan="2">Сума, грн</th></tr>
+        <tr>${AG.map(()=>'<th>на 1 дит.</th><th>грн</th>').join('')}</tr></thead>
+        <tbody>${rows}<tr class="tot"><td>Разом</td>${AG.map((a,i)=>`<td></td><td>${fmt(c.perChild[i])}</td>`).join('')}<td></td><td>${fmt(c.cost)}</td></tr></tbody></table></div>
+        <p class="hint">Норми брутто: грами (яйця — штуки) на одну дитину. Ціни — з вкладки «Розхід продуктів».</p></details>`:''}
+    </article>`}).join('');
+  return `<div class="row between">${monthNav()}<button class="btn pri" data-act="addDay">+ Додати день</button></div>
+    <div class="stats">
+      <div class="stat"><span>Днів харчування</span><b>${t.days}</b></div>
+      <div class="stat"><span>Дітоднів</span><b>${fmtq(kdAll,0)}</b></div>
+      <div class="stat"><span>Вартість за місяць</span><b>${fmt(t.cost)} грн</b></div>
+      <div class="stat"><span>Ясла / садок на дитину</span><b>${fmt(t.gc[0]/Math.max(1,t.kd[0]))} / ${fmt(t.gc[1]/Math.max(1,t.kd[1]))}</b></div>
+    </div>
+    ${days||`<div class="card empty">У ${MONTHS_LOC[+mm-1]} ще немає жодного дня. Натисніть «Додати день», виберіть страви на кожен прийом їжі та вкажіть кількість дітей у групах.${S.meta.dishes.length?'':'<br>Спершу заповніть вкладку «Страви».'}</div>`}`;
+}
+
+/* ---- табель ---- */
+function rTabel(){
+  const gs=GR();
+  if(!gs.length)return `<div class="card empty">Спершу додайте групи садочка у вкладці «Заклад».</div>`;
+  if(!gs.find(g=>g.id===S.tg))S.tg=gs[0].id;
+  const g=gs.find(x=>x.id===S.tg),m=month(),days=sortDays(m),kids=kidsOf(g.id);
+  const ageSel=k=>g.mixed?`<select data-f="kidAge" data-kid="${k.id}" aria-label="Вікова категорія">${AG.map((a,i)=>`<option value="${i}" ${ageOf(k,g)===i?'selected':''}>${a.a} (${a.s})</option>`).join('')}</select>`:'';
+  const catSel=k=>`<select data-f="kidCat" data-kid="${k.id}" aria-label="Пільга"><option value="">без пільги</option>${S.meta.cats.map(c=>`<option value="${c.id}" ${k.cat===c.id?'selected':''}>${esc(c.n)} (−${fmtq(c.d,0)}%)</option>`).join('')}</select>`;
+  let T={days:0,full:0,ben:0,pay:0};
+  const rows=kids.map(k=>{const f=kidFee(k);Object.keys(T).forEach(x=>T[x]+=f[x]);const t=x=>m.tab[x.id]||{};
+    return `<tr><td class="name"><div class="pn"><span>${esc(k.name)}</span>${S.confirm==='kid'+k.id?`<span class="confirm"><button class="btn sm danger" data-act="rmKid" data-kid="${k.id}">Видалити</button><button class="btn sm ghost" data-act="cancel">Ні</button></span>`:`<button class="btn sm ghost danger" data-act="ask" data-k="kid${k.id}" aria-label="Видалити ${esc(k.name)}">×</button>`}</div>${ageSel(k)}${catSel(k)}</td>
+      ${days.map(d=>`<td class="c"><input type="checkbox" ${t(d)[k.id]?'checked':''} data-f="tick" data-day="${d.id}" data-kid="${k.id}" aria-label="${esc(k.name)}, ${dmy(d.date)}"></td>`).join('')}
+      <td>${f.days}</td><td>${fmt(f.full)}</td><td>${f.ben?fmt(f.ben):'—'}</td><td class="calc">${fmt(f.pay)}</td></tr>`}).join('');
+  const foot=days.map(d=>{if(!fromTab(d,g))return '<td class="c"><span class="hint">—</span></td>';const a=grpAges(d,g);return `<td class="c">${g.mixed?`${a[0]}+${a[1]}`:a[0]+a[1]}</td>`}).join('');
+  const fee=S.meta.fee,feeTxt=fee.mode==='fix'?(g.mixed?`${fmt(fee.fix[0])} / ${fmt(fee.fix[1])} грн за день (ясла / садок)`:`${fmt(fee.fix[g.age])} грн за день`):`${fmtq(fee.pct,0)}% від вартості харчування за день`;
+  return `<div class="row between">${monthNav()}</div>
+    <div class="gsel" role="group" aria-label="Група">${gs.map(x=>`<button data-act="tg" data-g="${x.id}" aria-pressed="${x.id===g.id}">${esc(x.name)}<small>${gLabel(x)}</small></button>`).join('')}</div>
+    ${g.mixed?'<p class="hint"><b>Різновікова група.</b> Біля кожної дитини виберіть вікову категорію — норми, вартість і плата рахуються окремо для ясельних і садкових дітей.</p>':''}
+    <p class="hint">Відмітьте дітей, які харчувалися. Щойно в день є відмітки, кількість дітей групи в журналі береться з табеля. Плата батьків: ${feeTxt} (змінюється у вкладці «Заклад»), мінус пільга.</p>
+    ${days.length?'':`<div class="infobox"><p>У ${MONTHS_LOC[+S.cur.split('-')[1]-1]} ще немає днів у журналі. Стовпці табеля — це дні харчування з журналу.</p><button class="btn pri sm" data-act="goJournal">Перейти до журналу</button></div>`}
+    <div class="tw"><table class="tab">
+      <thead><tr><th>Дитина · пільга</th>${days.map(d=>`<th class="d">${+d.date.slice(8)}<br>${wday(d.date)}<br><button data-act="allDay" data-day="${d.id}">усі</button></th>`).join('')}<th>Днів</th><th>Нараховано</th><th>Пільга</th><th>До сплати</th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="${days.length+5}" class="empty">У групі «${esc(g.name)}» ще немає дітей. Додайте нижче.</td></tr>`}</tbody>
+      <tfoot><tr class="tot"><td>Харчувалося</td>${foot}<td>${T.days}</td><td>${fmt(T.full)}</td><td>${fmt(T.ben)}</td><td>${fmt(T.pay)}</td></tr></tfoot></table></div>
+    <form class="row" id="addKidForm" style="margin-top:12px"><input id="newKid" placeholder="Прізвище та імʼя дитини" autocomplete="off" style="flex:1;min-width:200px;max-width:340px" aria-label="ПІБ дитини">
+      ${g.mixed?`<select id="newKidAge" aria-label="Вікова категорія">${AG.map((a,i)=>`<option value="${i}">${a.a} (${a.s})</option>`).join('')}</select>`:''}
+      <select id="newKidCat" aria-label="Пільга"><option value="">без пільги</option>${S.meta.cats.map(c=>`<option value="${c.id}">${esc(c.n)}</option>`).join('')}</select>
+      <button class="btn pri" type="submit">+ Додати дитину</button></form>
+    <p class="hint">Порада: щоб внести список швидко, вставте в поле кілька імен через кому.</p>`;
+}
+
+/* ---- розхід ---- */
+function rStock(){
+  const m=month(),ps=allProducts(),C=costing().prod,Z={startQ:0,startS:0,inQ:0,inS:0,usedQ:0,usedS:0,wrQ:0,wrS:0,endQ:0,endS:0};
+  const T={startS:0,inS:0,usedS:0,wrS:0,endS:0};
+  const rows=ps.map(p=>{
+    const r=C[p]||Z,s=m.stock[p]||{},un=su(p);Object.keys(T).forEach(x=>T[x]+=r[x]||0);
+    const inMenu=S.meta.dishes.filter(d=>d.items.some(i=>i.p===p)).length;
+    const del=S.confirm==='p:'+p?`<span class="confirm">${inMenu?`Є в ${inMenu} стр., звідти теж зникне. `:''}<button class="btn sm danger" data-act="delP" data-p="${esc(p)}">Видалити</button><button class="btn sm ghost" data-act="cancel">Ні</button></span>`
+      :`<button class="btn sm ghost danger" data-act="ask" data-k="p:${esc(p)}" aria-label="Видалити продукт ${esc(p)}">×</button>`;
+    const open=S.openBuys===p,nb=buysOf(p).length,end=r.endQ;
+    let html=`<tr class="${open?'opened':''}"><td class="name"><div class="pn"><span>${esc(p)} ${inMenu?'':'<span class="badge">не в стравах</span>'}</span>${del}</div></td>
+      <td><select data-f="unit" data-p="${esc(p)}" aria-label="Одиниця">${UNITS.map(([v,l])=>`<option value="${v}" ${unitOf(p)===v?'selected':''}>${l}</option>`).join('')}</select></td>
+      <td>${fmtq(r.startQ)}${r.manual?' ✎':''}</td><td class="sum">${fmt(r.startS)}</td><td>${fmtq(r.inQ)}</td><td class="sum">${fmt(r.inS)}</td>
+      <td class="calc">${fmtq(r.usedQ)}</td><td class="calc sum">${fmt(r.usedS)}</td>
+      <td><input type="number" step="any" min="0" value="${s.written||''}" placeholder="0" data-f="written" data-p="${esc(p)}" aria-label="Списано"></td><td class="sum">${fmt(r.wrS)}</td>
+      <td class="calc ${end<-1e-9?'neg':''}">${fmtq(end)} ${un}</td><td class="calc sum ${end<-1e-9?'neg':''}">${fmt(r.endS)}</td>
+      <td><button class="btn sm ${open?'pri':''}" data-act="buys" data-p="${esc(p)}" aria-expanded="${open}">${open?'Згорнути':`Прихід${nb?` (${nb})`:''}`}</button></td></tr>`;
+    if(open){const startSet=s.start!==undefined&&s.start!=='',lots=(r.endLots||[]).map(x=>`${fmtq(x.q)} ${un} × ${fmt(x.pr)}`).join('; ');
+      html+=`<tr class="buyrow"><td colspan="13"><div class="buybox">
+        <div class="bstart"><b>Залишок на початок місяця</b>
+          <div class="row"><label>Кількість, ${un}<input type="number" step="any" min="0" value="${startSet?s.start:''}" placeholder="${fmtq(r.startQ)}" data-f="start" data-p="${esc(p)}"></label>
+          <label>Ціна, грн за ${un}<input type="number" step="any" min="0" value="${s.startPr||''}" placeholder="${r.startQ?fmtq(r.startS/r.startQ,2):'0'}" data-f="startPr" data-p="${esc(p)}"></label></div>
+          <p class="hint">Порожньо — береться залишок минулого місяця з його цінами. Вписуйте лише для першого місяця роботи.</p></div>
+        <div><b>Надходження за місяць</b>
+          ${nb?`<div class="bwrap"><table class="buys"><thead><tr><th>Дата</th><th>Кількість, ${un}</th><th>Ціна за ${un}</th><th>Сума, грн</th><th></th></tr></thead><tbody>
+          ${buysOf(p).map(b=>`<tr><td><input type="date" value="${b.date||''}" data-f="bdate" data-p="${esc(p)}" data-b="${b.id}" aria-label="Дата"></td><td><input type="number" step="any" min="0" value="${b.q||''}" data-f="bq" data-p="${esc(p)}" data-b="${b.id}" aria-label="Кількість"></td>
+            <td><input type="number" step="any" min="0" value="${b.pr||''}" data-f="bpr" data-p="${esc(p)}" data-b="${b.id}" aria-label="Ціна"></td><td>${fmt(num(b.q)*num(b.pr))}</td><td><button class="btn sm ghost danger" data-act="rmBuy" data-p="${esc(p)}" data-b="${b.id}" aria-label="Видалити">×</button></td></tr>`).join('')}
+          </tbody></table></div>`:'<p class="hint">Ще немає надходжень у цьому місяці.</p>'}
+          <form class="row buyform" data-p="${esc(p)}"><input type="date" name="d" aria-label="Дата"><input type="number" step="any" min="0" name="q" placeholder="кількість" aria-label="Кількість"><input type="number" step="any" min="0" name="pr" placeholder="ціна" aria-label="Ціна"><button class="btn pri sm" type="submit">+ Надходження</button></form>
+          ${lots?`<p class="hint">Залишок на кінець по партіях: ${lots}</p>`:''}</div></div></td></tr>`}
+    return html}).join('');
+  const meth=S.meta.costMethod==='avg'?'avg':'fifo';
+  return `<div class="row between">${monthNav()}<button class="btn" data-act="xlsx">Завантажити Excel</button></div>
+    <h2 style="margin-top:16px">Рух продуктів за ${MONTHS_GEN[+S.cur.split('-')[1]-1]}</h2>
+    <form class="row" id="addProdForm" style="margin:10px 0"><input id="newProd" placeholder="Назва продукту, напр. пшоно" autocomplete="off" style="flex:1;min-width:180px;max-width:320px" aria-label="Назва нового продукту">
+      <select id="newUnit" aria-label="Одиниця"><option value="г">кг</option><option value="гр">г</option><option value="шт">шт</option></select><button class="btn pri" type="submit">+ Додати продукт</button></form>
+    <div class="row" style="margin:6px 0"><label for="costMethod"><b>Ціна витрати:</b></label><select id="costMethod" data-f="costMethod"><option value="fifo" ${meth==='fifo'?'selected':''}>ФІФО — спершу старіші партії</option><option value="avg" ${meth==='avg'?'selected':''}>За середньозваженою ціною</option></select></div>
+    <p class="hint">«Видано» рахується саме: страви дня × кількість дітей у групах. Кнопка «Прихід» — надходження з різними цінами. Залишок із цінами партій переходить на наступний місяць.</p>
+    ${ps.length?`<div class="tw"><table class="stock">
+      <thead><tr><th rowspan="2">Продукт</th><th rowspan="2">Од.</th><th colspan="2" class="g">Залишок на початок</th><th colspan="2" class="g">Надійшло</th><th colspan="2" class="g">Видано</th><th colspan="2" class="g">Списано</th><th colspan="2" class="g">Залишок на кінець</th><th rowspan="2"></th></tr>
+      <tr><th>к-сть</th><th>сума</th><th>к-сть</th><th>сума</th><th>к-сть</th><th>сума</th><th>к-сть</th><th>сума</th><th>к-сть</th><th>сума</th></tr></thead>
+      <tbody>${rows}<tr class="tot"><td>Разом, грн</td><td></td><td></td><td>${fmt(T.startS)}</td><td></td><td>${fmt(T.inS)}</td><td></td><td>${fmt(T.usedS)}</td><td></td><td>${fmt(T.wrS)}</td><td></td><td>${fmt(T.endS)}</td><td></td></tr></tbody></table></div>
+      <p class="hint">Перевірка: ${fmt(T.startS)} + ${fmt(T.inS)} − ${fmt(T.usedS)} − ${fmt(T.wrS)} = <b>${fmt(T.startS+T.inS-T.usedS-T.wrS)}</b> грн.</p>`
+      :`<div class="card empty">Продукти зʼявляться тут, щойно ви додасте страви.</div>`}`;
+}
+
+/* ---- норми 305 ---- */
+function weekPicker(){const W=weeksOfMonth();if(S.wk>=W.length)S.wk=Math.max(0,W.length-1);
+  return {W,html:W.length?`<div class="gsel" role="group" aria-label="Тиждень">${W.map((w,i)=>`<button data-act="wk" data-i="${i}" aria-pressed="${i===S.wk}">${dmy(w.days[0].date).slice(0,5)}–${dmy(w.days[w.days.length-1].date).slice(0,5)}<small>${w.days.length} дн.</small></button>`).join('')}</div>`:''}}
+function normTable(rows,showP=true){
+  return `<div class="tw"><table><thead><tr><th rowspan="2">Група продуктів</th>${AG.map(a=>`<th colspan="${showP?4:3}" style="text-align:center;border-left:1px solid var(--line)">${a.c}</th>`).join('')}</tr>
+    <tr>${AG.map(()=>`${showP?'<th>порцій</th>':''}<th>факт / норма</th><th>%</th><th>стан</th>`).join('')}</tr></thead><tbody>
+    ${rows.map(({n,cells})=>`<tr><td class="l">${esc(n.n)}${NOTE[n.k]?` <span class="hint" title="${esc(NOTE[n.k])}">ⓘ</span>`:''}</td>${cells.map(c=>`${showP?`<td>${n.t==='lim'?'—':`${fmtq(c.fp,0)} / ${fmtq(c.tp,1)}`}</td>`:''}<td>${n.t==='cnt'?`${fmtq(c.fact,0)} / ${fmtq(c.target,1)} порц.`:`${fmtq(c.fact,1)} / ${fmtq(c.target,1)} ${n.u}`}</td><td>${isFinite(c.pct)?fmtq(c.pct,0)+'%':'—'}</td><td><span class="pill ${c.st[0]}">${c.st[1]}</span></td>`).join('')}</tr>`).join('')}
+    </tbody></table></div>`}
+function kcalOf(day,ml,i){let s=0,miss=false;day.dishes.forEach(e=>{if(e.m!==ml)return;const d=dishById(e.id);if(!d)return;const v=d.kcal&&d.kcal[i];if(v===''||v===undefined||v===null)miss=true;else s+=num(v)});return {s,miss}}
+function rNorms(){
+  const {W,html}=weekPicker(),w=W[S.wk];
+  const law=`<div class="law"><p><b>Що перевіряється.</b> Набір продуктів за тиждень порівнюється з Додатком 1 до Норм харчування (постанова КМУ від 24.03.2021 № 305) — 5 днів, сніданок, обід і вечеря. Норма масштабується на кількість днів тижня з журналу.</p>
+    <ul><li>Маса нетто порції може відхилятися на 5–10%: тут зелене — від 90 до 110% норми.</li><li>Риба, птиця і мʼясо мають бути витримані за загальною масою за тиждень.</li><li>Сіль, цукор, какао і чай вважаються виконаними, якщо дано не менше 50% норми.</li></ul>
+    <p class="hint" style="margin-top:6px">Як рахується: якщо в страві вказано «Група за 305» (наприклад, каша → злакові), береться вихід страви. Інші інгредієнти рахуються за масою нетто відповідно до групи продукту. Звіряйте з чинною редакцією постанови.</p></div>`;
+  if(!w)return `<div class="row between">${monthNav()}</div>${law}<div class="card empty">Додайте дні харчування в журнал — тут зʼявиться перевірка виконання норм за кожен тиждень.</div>`;
+  const rows=normRows(w.days),bad=rows.reduce((a,r)=>a+r.cells.filter(c=>c.st[0]==='bad').length,0),okN=rows.reduce((a,r)=>a+r.cells.filter(c=>c.st[0]==='ok').length,0);
+  const ml=MEAL_ON();
+  const kc=w.days.map(d=>`<tr><td class="l">${dmy(d.date)} <span class="hint">${wday(d.date)}</span></td>${[0,1].map(i=>{let tot=0,miss=false;
+    const cells=ml.map(m=>{const r=kcalOf(d,m,i);tot+=r.s;miss=miss||r.miss;const rg=KC[m]?KC[m][i]:[KC.day[i]*.05,KC.day[i]*.1];const cls=!r.s?'':r.s<rg[0]?'warn':r.s>rg[1]?'warn':'ok';return `<td class="${cls}" title="Норма ${fmtq(rg[0],0)}–${fmtq(rg[1],0)} ккал">${r.s?fmtq(r.s,0):'—'}${r.miss&&r.s?'*':''}</td>`}).join('');
+    const p=tot/KC.day[i]*100;return cells+`<td class="calc">${tot?fmtq(tot,0):'—'}${miss&&tot?'*':''}</td><td>${tot?fmtq(p,0)+'%':'—'}</td>`}).join('')}</tr>`).join('');
+  return `<div class="row between">${monthNav()}<button class="btn" data-act="normFile">Завантажити аналіз</button></div>${html}${law}
+    <div class="stats"><div class="stat"><span>Днів у тижні</span><b>${w.days.length}</b></div><div class="stat"><span>У нормі</span><b>${okN} з ${rows.length*2}</b></div><div class="stat"><span>Нестача / перевищення</span><b>${bad}</b></div></div>
+    <h2>Набір продуктів за тиждень (на 1 дитину)</h2>${normTable(rows)}
+    <h2 style="margin-top:20px">Енергетична цінність за день, ккал</h2>
+    <p class="hint">Норма: ясла — сніданок і вечеря 350–415, обід 415–485, на добу 1385; садок — 425–510, 510–595, 1700. Ккал страви вказуються у вкладці «Страви» за картками-розкладками. * — не в усіх страв вказано ккал.</p>
+    <div class="tw"><table><thead><tr><th rowspan="2">День</th>${AG.map(a=>`<th colspan="${ml.length+2}" style="text-align:center;border-left:1px solid var(--line)">${a.a}</th>`).join('')}</tr>
+      <tr>${AG.map(()=>ml.map(m=>`<th>${MEALS[m]}</th>`).join('')+'<th>Разом</th><th>% доби</th>').join('')}</tr></thead><tbody>${kc}</tbody></table></div>
+    <details style="margin-top:18px"><summary>Уточнити норми</summary>
+      <p class="hint">Значення взято з Додатка 1. Якщо засновник затвердив інші або вийшла нова редакція, змініть тут. Маса — нетто порції.</p>
+      <div class="tw"><table><thead><tr><th>Група</th><th>Порцій на тиждень</th><th>Маса порції, ясла</th><th>Маса порції, садок</th><th>Од.</th></tr></thead><tbody>
+      ${NG().map(n=>`<tr><td class="l">${esc(n.n)}<div class="hint" style="white-space:normal">${esc(NOTE[n.k]||'')}</div></td><td><input type="number" step="any" min="0" value="${n.p}" data-f="normP" data-k="${n.k}" aria-label="Порцій"></td>
+        ${[0,1].map(i=>n.t==='cnt'?'<td>—</td>':`<td><input type="number" step="any" min="0" value="${n.m[i]}" data-f="normM" data-k="${n.k}" data-i="${i}" aria-label="Маса"></td>`).join('')}<td>${n.u}</td></tr>`).join('')}
+      </tbody></table></div><button class="btn sm" data-act="normReset" style="margin-top:8px">Повернути значення постанови</button></details>`;
+}
+
+/* ---- бракераж ---- */
+function rBrak(){
+  const m=month(),days=sortDays(m);
+  if(!days.length)return `<div class="row between">${monthNav()}</div><div class="card empty">Бракераж ведеться по днях журналу. Додайте день харчування.</div>`;
+  if(!days.find(d=>d.id===S.bday))S.bday=(days.find(d=>d.date===isoD(today))||days[days.length-1]).id;
+  const day=days.find(d=>d.id===S.bday),B=m.brak[day.id]||{};
+  const order=day.dishes.map((e,ix)=>({e,ix})).sort((a,b)=>MORDER.indexOf(a.e.m)-MORDER.indexOf(b.e.m));
+  const rows=order.map(({e,ix})=>{const d=dishById(e.id);if(!d)return '';const v=B[ix]||{};
+    return `<tr><td>${MEALS[e.m]}</td><td class="l"><b>${esc(d.name)}</b><div class="hint">вихід ${fmtq(num(d.out[0]),0)} / ${fmtq(num(d.out[1]),0)} г</div></td>
+      <td><input type="time" value="${v.t||''}" data-f="brT" data-ix="${ix}" aria-label="Час"></td>
+      <td><input class="org" value="${esc(v.o||'')}" placeholder="Колір, смак, запах, консистенція відповідають" data-f="brO" data-ix="${ix}" aria-label="Органолептична оцінка"></td>
+      <td><select data-f="brR" data-ix="${ix}" aria-label="Рішення"><option value="">—</option><option value="ok" ${v.r==='ok'?'selected':''}>Дозволено до видачі</option><option value="no" ${v.r==='no'?'selected':''}>Не дозволено</option></select></td>
+      <td style="text-align:center"><input type="checkbox" ${v.p?'checked':''} data-f="brP" data-ix="${ix}" aria-label="Добову пробу відібрано" style="width:18px;height:18px;accent-color:var(--accent)"></td></tr>`}).join('');
+  const filled=days.filter(d=>{const b=m.brak[d.id]||{};return d.dishes.length&&d.dishes.every((e,ix)=>b[ix]&&b[ix].r)}).length;
+  return `<div class="row between">${monthNav()}<div class="row"><button class="btn" data-act="brFill">Заповнити день типово</button><button class="btn pri" data-act="brFile">Завантажити журнал за місяць</button></div></div>
+    <div class="row" style="margin:14px 0"><label for="bday"><b>День:</b></label><select id="bday" data-f="bday">${days.map(d=>`<option value="${d.id}" ${d.id===day.id?'selected':''}>${dmy(d.date)}, ${wday(d.date)}</option>`).join('')}</select>
+      <span class="hint">Заповнено повністю: ${filled} з ${days.length} днів</span></div>
+    <p class="hint">Бракераж готових страв проводить бракеражна комісія перед видачею. Склад комісії вказується у вкладці «Заклад» і потрапляє в журнал.</p>
+    ${rows?`<div class="tw"><table class="br"><thead><tr><th>Прийом</th><th>Страва</th><th>Час</th><th>Органолептична оцінка</th><th>Рішення</th><th>Добова проба</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      :`<div class="card empty">У цей день ще не вибрано страв.</div>`}`;
+}
+
+/* ---- меню на тиждень ---- */
+function dishLine(d,withOut=true){return `${esc(d.name)}${d.alg?` (${esc(d.alg)})`:''}${withOut?` <small>${fmtq(num(d.out[0]),0)} / ${fmtq(num(d.out[1]),0)} г</small>`:''}`}
+function rWeek(){
+  const {W,html}=weekPicker(),w=W[S.wk],ml=MEAL_ON();
+  if(!w)return `<div class="row between">${monthNav()}</div><div class="card empty">Меню на тиждень складається з днів журналу. Додайте дні харчування.</div>`;
+  const rows=w.days.map(d=>`<tr><td class="day">${dmy(d.date)}<div class="hint">${new Date(d.date+'T12:00').toLocaleDateString('uk-UA',{weekday:'long'})}</div></td>${ml.map(m=>`<td>${d.dishes.filter(e=>e.m===m).map(e=>{const x=dishById(e.id);return x?`<div class="it">${dishLine(x)}</div>`:''}).join('')||'<span class="hint">—</span>'}</td>`).join('')}</tr>`).join('');
+  return `<div class="row between">${monthNav()}<button class="btn pri" data-act="weekFile">Завантажити меню для друку</button></div>${html}
+    <p class="hint">Вихід: ясла / садок. У дужках — індекси алергенів. Розшифровка: ${esc(S.meta.legend||'вкажіть у вкладці «Заклад»')}</p>
+    <div class="tw"><table class="wk"><thead><tr><th>День</th>${ml.map(m=>`<th style="text-align:left">${MEALS[m]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+/* ---- підсумок і звіт ---- */
+function groupStats(k=S.cur){const m=month(k);return GR().map(g=>{let kd=0,sum=0;m.days.forEach(d=>{const a=grpAges(d,g,k),pc=dayCalc(d,k).perChild;kd+=a[0]+a[1];sum+=a[0]*pc[0]+a[1]*pc[1]});return {g,kd,sum}})}
+function feeStats(k=S.cur){const T={full:0,ben:0,pay:0,cat:{}};S.meta.kids.forEach(x=>{const f=kidFee(x,k);T.full+=f.full;T.ben+=f.ben;T.pay+=f.pay;if(f.ben){const c=catOf(x.cat);const o=T.cat[c.n]||(T.cat[c.n]={kids:0,days:0,sum:0});o.kids++;o.days+=f.days;o.sum+=f.ben}});return T}
+function rSummary(){
+  const t=monthTotals(),u=usedMap(),CP=costing().prod,uS=p=>(CP[p]&&CP[p].usedS)||0,ps=Object.keys(u).sort((a,b)=>uS(b)-uS(a)),kdAll=t.kd[0]+t.kd[1];
+  const gsx=groupStats(),F=feeStats(),tabUsed=S.meta.kids.length&&month().days.some(d=>month().tab[d.id]);
+  return `<div class="row between">${monthNav()}<div class="row"><button class="btn pri" data-act="repFile">Завантажити звіт для друку</button><button class="btn" data-act="xlsx">Завантажити Excel</button></div></div>
+  <div class="stats">
+    <div class="stat"><span>Вартість за місяць</span><b>${fmt(t.cost)} грн</b></div>
+    <div class="stat"><span>Дітоднів</span><b>${fmtq(kdAll,0)}</b></div>
+    <div class="stat"><span>Нараховано батькам</span><b>${tabUsed?fmt(F.pay)+' грн':'—'}</b></div>
+    <div class="stat"><span>Кошти засновника</span><b>${tabUsed?fmt(t.cost-F.pay)+' грн':'—'}</b></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h2>За віковими групами</h2><div class="tw"><table><thead><tr><th>Група</th><th>Дітоднів</th><th>Сума, грн</th><th>На 1 дит./день</th></tr></thead>
+      <tbody>${AG.map((a,i)=>`<tr><td>${a.c}</td><td>${fmtq(t.kd[i],0)}</td><td>${fmt(t.gc[i])}</td><td>${fmt(t.gc[i]/Math.max(1,t.kd[i]))}</td></tr>`).join('')}
+      <tr class="tot"><td>Разом</td><td>${fmtq(kdAll,0)}</td><td>${fmt(t.cost)}</td><td>${fmt(t.cost/Math.max(1,kdAll))}</td></tr></tbody></table></div>
+      ${gsx.length?`<h3 style="margin-top:14px">По групах садочка</h3><div class="tw"><table><thead><tr><th>Група</th><th>За списком</th><th>Дітоднів</th><th>Сума, грн</th></tr></thead><tbody>${gsx.map(x=>`<tr><td>${esc(x.g.name)} <span class="hint">${gLabel(x.g)}</span></td><td>${x.g.total||'—'}</td><td>${x.kd}</td><td>${fmt(x.sum)}</td></tr>`).join('')}</tbody></table></div>`:''}</div>
+    <div class="card"><h2>Плата батьків і пільги</h2>${tabUsed?`<div class="tw"><table><tbody>
+      <tr><td>Нараховано за табелем (без пільг)</td><td>${fmt(F.full)}</td></tr><tr><td>Пільги</td><td>${fmt(F.ben)}</td></tr><tr class="tot"><td>До сплати батьками</td><td>${fmt(F.pay)}</td></tr></tbody></table></div>
+      ${Object.keys(F.cat).length?`<h3 style="margin-top:14px">Пільгові категорії</h3><div class="tw"><table><thead><tr><th>Категорія</th><th>Дітей</th><th>Днів</th><th>Сума пільги</th></tr></thead><tbody>${Object.entries(F.cat).map(([c,v])=>`<tr><td class="l">${esc(c)}</td><td>${v.kids}</td><td>${v.days}</td><td>${fmt(v.sum)}</td></tr>`).join('')}</tbody></table></div>`:''}`
+      :'<p class="hint">Плата батьків рахується за табелем. Заповніть табель відвідування — і тут зʼявиться нарахування по дітях та сума пільг.</p>'}</div>
+  </div>
+  <div class="card"><h2>Видані продукти</h2>${ps.length?`<div class="tw"><table><thead><tr><th>Продукт</th><th>Кількість</th><th>Сума, грн</th></tr></thead><tbody>${ps.map(p=>`<tr><td class="name">${esc(p)}</td><td>${fmtq(u[p])} ${su(p)}</td><td>${fmt(uS(p))}</td></tr>`).join('')}</tbody></table></div>`:'<p class="hint">Поки що немає даних за цей місяць.</p>'}</div>
+  <p class="hint">Звіт для друку містить загальні показники, дані по групах, плату батьків і пільги, виконання норм за місяць, рух продуктів і підписи. Файл відкривається в браузері або Word, далі «Друк», аркуш А4. Назва закладу та підписанти — у вкладці «Заклад».</p>`;
+}
+
+/* ---- страви ---- */
+function rMenu(){
+  const ps=allProducts();
+  const cards=S.meta.dishes.map((d,di)=>{const open=S.openDish===d.id;
+    const head=`<div class="dhead"><span class="dnum">${di+1}</span><input class="dname" value="${esc(d.name)}" data-f="dname" data-d="${d.id}" aria-label="Назва страви">
+      <span class="dmeta">${MEALS[d.meal]||''} · ${fmtq(num(d.out[0]),0)} / ${fmtq(num(d.out[1]),0)} г${d.ng?' · '+esc(NDEF.find(n=>n.k===d.ng)?.n||''):''}</span>
+      <div class="dact"><button class="btn sm ${open?'pri':''}" data-act="openDish" data-d="${d.id}" aria-expanded="${open}">${open?'Згорнути':`Склад (${d.items.length})`}</button><button class="btn sm" data-act="dupDish" data-d="${d.id}">Копія</button>${confirmBtn('dish'+d.id,'Видалити',`data-act="rmDishCat" data-d="${d.id}"`)}</div></div>`;
+    if(!open)return `<article class="card dish">${head}</article>`;
+    const items=d.items.map((it,ii)=>`<tr><td class="n">${ii+1}</td><td><input class="pname" list="plist" value="${esc(it.p)}" data-f="ip" data-d="${d.id}" data-ii="${ii}" aria-label="Продукт"></td>
+      <td><select data-f="pgrp" data-p="${esc(it.p)}" ${it.p?'':'disabled'} aria-label="Група за 305">${ngOpts(grpP(it.p),'—')}</select></td>
+      ${[0,1].map(i=>`<td><input type="number" step="any" min="0" value="${it.g[i]||''}" data-f="ig" data-d="${d.id}" data-ii="${ii}" data-i="${i}" aria-label="Брутто ${AG[i].a}"></td><td><input type="number" step="any" min="0" value="${it.n[i]??''}" placeholder="${it.g[i]||''}" data-f="in" data-d="${d.id}" data-ii="${ii}" data-i="${i}" aria-label="Нетто ${AG[i].a}"></td>`).join('')}
+      <td>${it.p?(isPcs(it.p)?'шт':'г'):''}</td><td><button class="btn sm ghost danger" data-act="rmItem" data-d="${d.id}" data-ii="${ii}" aria-label="Прибрати інгредієнт">×</button></td></tr>`).join('');
+    return `<article class="card dish open">${head}<div class="dbody">
+      <div class="dprops">
+        <label>Прийом їжі<select data-f="dmeal" data-d="${d.id}">${MORDER.map(m=>`<option value="${m}" ${d.meal===m?'selected':''}>${MEALS[m]}</option>`).join('')}</select></label>
+        <label>Група за 305 (уся страва)<select data-f="dng" data-d="${d.id}">${ngOpts(d.ng,'— рахувати за інгредієнтами —')}</select></label>
+        <label>Вихід, г (ясла / садок)<span class="pair">${[0,1].map(i=>`<input type="number" step="any" min="0" value="${d.out[i]||''}" data-f="dout" data-d="${d.id}" data-i="${i}" aria-label="Вихід ${AG[i].a}">`).join('')}</span></label>
+        <label>Ккал (ясла / садок)<span class="pair">${[0,1].map(i=>`<input type="number" step="any" min="0" value="${d.kcal[i]??''}" data-f="dkcal" data-d="${d.id}" data-i="${i}" aria-label="Ккал ${AG[i].a}">`).join('')}</span></label>
+        <label>Алергени (індекси)<input value="${esc(d.alg||'')}" placeholder="напр. Г, М" data-f="dalg" data-d="${d.id}" style="width:120px"></label>
+      </div>
+      <div class="tw"><table class="mt"><thead><tr><th rowspan="2" class="n">№</th><th rowspan="2">Продукт</th><th rowspan="2">Група за 305</th>${AG.map(a=>`<th colspan="2" class="g">${a.a}, на 1 дит.</th>`).join('')}<th rowspan="2">Од.</th><th rowspan="2"></th></tr>
+        <tr>${AG.map(()=>'<th>брутто</th><th>нетто</th>').join('')}</tr></thead><tbody>${items}</tbody></table></div>
+      <div class="row"><button class="btn sm" data-act="addItem" data-d="${d.id}">+ Інгредієнт</button><span class="hint">Брутто — для складу і вартості. Нетто — для перевірки норм (порожньо = як брутто). Група продукту запамʼятовується для всіх страв.</span></div>
+    </div></article>`}).join('');
+  return `<h2>Страви та картки-розкладки</h2>
+    <p class="hint">Норми продуктів — окремо для ясел (1–4 роки) і садка (4–6(7) років). Якщо страва цілком є порцією однієї групи норм (каша, салат, фрукт), вкажіть «Група за 305» і вихід — так рахує постанова.</p>
+    <form class="row" id="addDishForm" style="margin:12px 0"><input id="newDish" placeholder="Назва нової страви" autocomplete="off" style="flex:1;min-width:200px;max-width:340px" aria-label="Назва страви">
+      <select id="newDishMeal" aria-label="Прийом їжі">${MORDER.map(m=>`<option value="${m}">${MEALS[m]}</option>`).join('')}</select><button class="btn pri" type="submit">+ Додати страву</button></form>
+    <datalist id="plist">${ps.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
+    ${cards||'<div class="card empty">Ще немає страв.</div>'}`;
+}
+
+/* ---- заклад ---- */
+function rSettings(){
+  const M=S.meta,f=M.fee;
+  const sig=[['inst','Назва закладу','Заклад дошкільної освіти (ясла-садок) …'],['head','Директор (ПІБ)','Прізвище та ініціали'],['resp','Відповідальний за харчування','Прізвище та ініціали'],['nurse','Медична сестра','Прізвище та ініціали'],['accountant','Бухгалтер','Прізвище та ініціали']];
+  return `<div class="grid2">
+    <div class="card"><h2>Заклад і підписи</h2><div class="fields">${sig.map(([k,l,p])=>`<label>${l}<input value="${esc(M[k]||'')}" data-f="meta" data-k="${k}" placeholder="${p}"></label>`).join('')}</div>
+      <label class="lab" style="margin-top:10px">Склад бракеражної комісії (кожен з нового рядка)<textarea data-f="meta" data-k="comm" placeholder="Голова комісії — …&#10;Медична сестра — …&#10;Кухар — …">${esc(M.comm||'')}</textarea></label></div>
+    <div class="card"><h2>Режим харчування</h2>
+      <div class="lst">${MORDER.map(m=>`<label class="chk"><input type="checkbox" data-f="mealOn" data-m="${m}" ${M.meals.includes(m)?'checked':''}> ${MEALS[m]}</label>`).join('')}</div>
+      <p class="hint">Понад 8 і до 12 годин — триразове (сніданок, обід, вечеря). Понад 12 годин — чотириразове. Цілодобово — пʼятиразове.</p>
+      <h2 style="margin-top:14px">Плата батьків</h2>
+      <div class="lst"><label class="chk"><input type="radio" name="feeMode" data-f="feeMode" value="pct" ${f.mode!=='fix'?'checked':''}> Відсоток від вартості харчування за день</label>
+        ${f.mode!=='fix'?`<label class="lab">Відсоток, %<input type="number" min="0" max="100" step="any" value="${f.pct}" data-f="feePct"></label>`:''}
+        <label class="chk"><input type="radio" name="feeMode" data-f="feeMode" value="fix" ${f.mode==='fix'?'checked':''}> Фіксована сума за день</label>
+        ${f.mode==='fix'?`<div class="row">${AG.map((a,i)=>`<label class="lab">${a.a}, грн<input type="number" min="0" step="any" value="${f.fix[i]||''}" data-f="feeFix" data-i="${i}"></label>`).join('')}</div>`:''}</div>
+      <p class="hint">Розмір плати і пільги встановлює засновник (рішення сільської, селищної, міської ради).</p></div>
+    <div class="card"><h2>Групи садочка</h2><div class="lst">${GR().map(g=>`<div class="li"><input value="${esc(g.name)}" data-f="gname" data-g="${g.id}" aria-label="Назва групи">
+        <select data-f="gage" data-g="${g.id}" aria-label="Вік" ${g.mixed?'title="Для різновікової групи — вік нових дітей за замовчуванням"':''}>${AG.map((a,i)=>`<option value="${i}" ${g.age===i?'selected':''}>${g.mixed?'за замовч.: ':''}${a.c}</option>`).join('')}</select>
+        <label class="chk"><input type="checkbox" data-f="gmixed" data-g="${g.id}" ${g.mixed?'checked':''}> різновікова</label>
+        <input type="number" min="0" value="${g.total||''}" placeholder="за списком" data-f="gtotal" data-g="${g.id}" aria-label="Дітей за списком" style="width:96px">
+        ${confirmBtn('grp'+g.id,'Видалити',`data-act="rmGroup" data-g="${g.id}"`)}</div>`).join('')||'<p class="hint">Ще немає груп.</p>'}</div>
+      <p class="hint">Різновікова група — коли разом діти ясельного і садкового віку. Вік кожної дитини вказується в табелі, а без табеля в журналі вводиться окремо кількість ясельних і садкових дітей.</p>
+      <form class="row" id="addGroupForm" style="margin-top:10px"><input id="newGroup" placeholder="Назва групи, напр. Ромашка" autocomplete="off" aria-label="Назва групи"><select id="newGroupAge" aria-label="Вік">${AG.map((a,i)=>`<option value="${i}">${a.a}</option>`).join('')}<option value="mix">Різновікова</option></select><button class="btn pri sm" type="submit">+ Група</button></form></div>
+    <div class="card"><h2>Пільгові категорії</h2><div class="lst">${M.cats.map(c=>`<div class="li"><input value="${esc(c.n)}" data-f="catN" data-c="${c.id}" aria-label="Категорія"><label class="lab" style="flex-direction:row;align-items:center">знижка<input type="number" min="0" max="100" step="any" value="${c.d}" data-f="catD" data-c="${c.id}" style="width:70px" aria-label="Знижка, %">%</label>
+        ${confirmBtn('cat'+c.id,'Видалити',`data-act="rmCat" data-c="${c.id}"`)}</div>`).join('')}</div>
+      <form class="row" id="addCatForm" style="margin-top:10px"><input id="newCat" placeholder="Нова категорія" autocomplete="off" aria-label="Нова категорія"><button class="btn pri sm" type="submit">+ Категорія</button></form></div>
+    <div class="card"><h2>Алергени в меню</h2><p class="hint">Індекси алергенів ставляться в меню в дужках після назви страви й розшифровуються поруч (додаток 13 до Норм).</p>
+      <label class="lab">Розшифровка індексів<textarea data-f="meta" data-k="legend">${esc(M.legend||'')}</textarea></label></div>
+    <div class="card"><h2>Резервна копія</h2><p class="hint">Дані живуть лише в цьому браузері. Збережіть копію у файл, щоб перенести на інший компʼютер або не втратити.</p>
+      <div class="row"><button class="btn pri" data-act="backup">Завантажити копію</button><label class="btn" for="restoreFile">Відновити з файлу</label><input type="file" id="restoreFile" accept=".json,application/json" hidden></div>
+      <div style="margin-top:12px">${confirmBtn('wipe','Стерти всі дані','data-act="wipeAll"')}</div></div>
+  </div>`;
+}
+
+/* ================= документи ================= */
+const REP_CSS=`body{margin:0;background:#fff}.rep{max-width:190mm;margin:0 auto;padding:10px;background:#fff;color:#000;font-family:"Times New Roman",Times,serif;font-size:14px;line-height:1.35}
+.rep .top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start}.rep .ap{line-height:1.7;min-width:260px}
+.rep h1{text-align:center;font-size:18px;margin:22px 0 2px;text-transform:uppercase;font-weight:700}.rep .subt{text-align:center;margin:0 0 16px;font-size:15px}
+.rep h3{font-size:15px;margin:16px 0 6px}.rep table{width:100%;border-collapse:collapse;margin-bottom:6px}
+.rep th,.rep td{border:1px solid #000;padding:4px 6px;text-align:center;color:#000;background:#fff;vertical-align:top}.rep th{background:#eee;font-size:13px}
+.rep td.l{text-align:left}.rep tr.t td{font-weight:700;background:#f4f4f4}.rep table.mv th,.rep table.mv td{font-size:11px;padding:3px}
+.rep .kv td{border:0;text-align:left;padding:2px 0}.rep .kv td.v{text-align:right;font-weight:700;width:180px}
+.rep .signs{margin-top:28px;display:grid;grid-template-columns:1fr 150px;gap:16px;align-items:end}.rep .sg{display:grid;gap:18px}
+.rep .line{display:inline-block;min-width:130px;border-bottom:1px solid #000}.rep .mp{width:130px;height:130px;border:1.5px dashed #777;border-radius:50%;display:grid;place-items:center;color:#777;font-size:13px}
+.rep small{color:#333}`;
+const docWrap=(title,body,land)=>`<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:A4 ${land?'landscape':'portrait'};margin:12mm}${REP_CSS}${land?'.rep{max-width:277mm}':''}</style></head><body><div class="rep">${body}</div></body></html>`;
+const ln=v=>v?esc(v):'<span class="line"></span>';
+const apHead=y=>`<div class="top"><div>${esc(S.meta.inst||'')}</div><div class="ap">ЗАТВЕРДЖУЮ<br>Директор <span class="line"></span> ${esc(S.meta.head||'')}<br>«___» ______________ ${y} р.</div></div>`;
+function signs(y,keys=[['resp','Відповідальний за харчування'],['nurse','Медична сестра'],['accountant','Бухгалтер']]){return `<div class="signs"><div class="sg">${keys.map(([k,l])=>`<div>${l} <span class="line"></span> ${ln(S.meta[k])}</div>`).join('')}<div>Дата складання «___» ______________ ${y} р.</div></div><div class="mp">М. П.</div></div>`}
+function reportDoc(){
+  const [y,mm]=S.cur.split('-'),mon=MONTHS_GEN[+mm-1],t=monthTotals(),kdAll=t.kd[0]+t.kd[1],e=esc;let n=0;const sec=x=>`<h3>${++n}. ${x}</h3>`;
+  let h=apHead(y)+`<h1>Звіт про організацію харчування дітей</h1><p class="subt">у закладі дошкільної освіти за ${mon} ${y} року</p>`;
+  h+=sec('Загальні показники')+`<table class="kv"><tbody><tr><td>Кількість днів харчування</td><td class="v">${t.days}</td></tr><tr><td>Кількість дітоднів</td><td class="v">${fmtq(kdAll,0)}</td></tr>
+    <tr><td>Режим харчування</td><td class="v">${MEAL_ON().map(m=>MEALS[m].toLowerCase()).join(', ')}</td></tr><tr><td>Загальна вартість харчування, грн</td><td class="v">${fmt(t.cost)}</td></tr><tr><td>Середня вартість на 1 дитину за день, грн</td><td class="v">${fmt(t.cost/Math.max(1,kdAll))}</td></tr></tbody></table>`;
+  h+=sec('Харчування за віковими групами')+`<table><thead><tr><th>Вікова група</th><th>Дітоднів</th><th>Сума, грн</th><th>На 1 дитину/день, грн</th></tr></thead><tbody>${AG.map((a,i)=>`<tr><td class="l">${a.c}</td><td>${fmtq(t.kd[i],0)}</td><td>${fmt(t.gc[i])}</td><td>${fmt(t.gc[i]/Math.max(1,t.kd[i]))}</td></tr>`).join('')}<tr class="t"><td class="l">Разом</td><td>${fmtq(kdAll,0)}</td><td>${fmt(t.cost)}</td><td>${fmt(t.cost/Math.max(1,kdAll))}</td></tr></tbody></table>`;
+  const gsx=groupStats();if(gsx.length)h+=sec('Відвідування по групах')+`<table><thead><tr><th>Група</th><th>Вік</th><th>За списком</th><th>Дітоднів</th><th>Сума, грн</th></tr></thead><tbody>${gsx.map(x=>`<tr><td class="l">${e(x.g.name)}</td><td>${x.g.mixed?'різновікова':AG[x.g.age].s}</td><td>${x.g.total||''}</td><td>${x.kd}</td><td>${fmt(x.sum)}</td></tr>`).join('')}</tbody></table>`;
+  const F=feeStats();if(F.full)h+=sec('Батьківська плата та пільги')+`<table class="kv"><tbody><tr><td>Нараховано батьківської плати (без пільг), грн</td><td class="v">${fmt(F.full)}</td></tr><tr><td>Сума пільг, грн</td><td class="v">${fmt(F.ben)}</td></tr><tr><td>До сплати батьками, грн</td><td class="v">${fmt(F.pay)}</td></tr><tr><td>За рахунок коштів засновника, грн</td><td class="v">${fmt(t.cost-F.pay)}</td></tr></tbody></table>
+    ${Object.keys(F.cat).length?`<table><thead><tr><th>Пільгова категорія</th><th>Дітей</th><th>Днів</th><th>Сума пільги, грн</th></tr></thead><tbody>${Object.entries(F.cat).map(([c,v])=>`<tr><td class="l">${e(c)}</td><td>${v.kids}</td><td>${v.days}</td><td>${fmt(v.sum)}</td></tr>`).join('')}</tbody></table>`:''}`;
+  const days=month().days;if(days.length){const R=normRows(days);h+=sec('Виконання норм харчування (Додаток 1 до Норм, постанова КМУ № 305)')+`<table><thead><tr><th>Група продуктів</th>${AG.map(a=>`<th>${a.a}: факт / норма</th><th>%</th>`).join('')}</tr></thead><tbody>${R.map(({n,cells})=>`<tr><td class="l">${e(n.n)}</td>${cells.map(c=>`<td>${n.t==='cnt'?`${fmtq(c.fact,0)} / ${fmtq(c.target,1)} порц.`:`${fmtq(c.fact,1)} / ${fmtq(c.target,1)} ${n.u}`}</td><td>${isFinite(c.pct)?fmtq(c.pct,0)+'%':'—'}</td>`).join('')}</tr>`).join('')}</tbody></table><p style="font-size:12px;margin:2px 0">На 1 дитину за ${days.length} дн. харчування.</p>`}
+  const CP=costing().prod,ps=allProducts().filter(p=>{const r=CP[p];return r&&(r.startQ||r.inQ||r.usedQ||r.wrQ||r.endQ)});
+  if(ps.length){const T={startS:0,inS:0,usedS:0,wrS:0,endS:0};
+    h+=sec('Рух продуктів харчування')+`<table class="mv"><thead><tr><th rowspan="2">№</th><th rowspan="2">Найменування</th><th rowspan="2">Од.</th><th colspan="2">Залишок на початок</th><th colspan="2">Надійшло</th><th colspan="2">Видано</th><th colspan="2">Списано</th><th colspan="2">Залишок на кінець</th></tr><tr>${'<th>к-сть</th><th>сума</th>'.repeat(5)}</tr></thead><tbody>
+    ${ps.map((p,i)=>{const r=CP[p];Object.keys(T).forEach(x=>T[x]+=r[x]);return `<tr><td>${i+1}</td><td class="l">${e(p)}</td><td>${su(p)}</td><td>${fmtq(r.startQ)}</td><td>${fmt(r.startS)}</td><td>${fmtq(r.inQ)}</td><td>${fmt(r.inS)}</td><td>${fmtq(r.usedQ)}</td><td>${fmt(r.usedS)}</td><td>${fmtq(r.wrQ)}</td><td>${fmt(r.wrS)}</td><td>${fmtq(r.endQ)}</td><td>${fmt(r.endS)}</td></tr>`}).join('')}
+    <tr class="t"><td></td><td class="l">Разом</td><td></td><td></td><td>${fmt(T.startS)}</td><td></td><td>${fmt(T.inS)}</td><td></td><td>${fmt(T.usedS)}</td><td></td><td>${fmt(T.wrS)}</td><td></td><td>${fmt(T.endS)}</td></tr></tbody></table>`}
+  return docWrap(`Звіт про харчування ${mon} ${y}`,h+signs(y));
+}
+function weekDoc(){const W=weeksOfMonth(),w=W[S.wk],[y]=S.cur.split('-'),ml=MEAL_ON();
+  const h=apHead(y)+`<h1>Меню</h1><p class="subt">на тиждень з ${dmy(w.days[0].date)} по ${dmy(w.days[w.days.length-1].date)}</p>
+  <table><thead><tr><th>День</th>${ml.map(m=>`<th>${MEALS[m]}</th>`).join('')}</tr></thead><tbody>${w.days.map(d=>`<tr><td class="l"><b>${dmy(d.date)}</b><br>${new Date(d.date+'T12:00').toLocaleDateString('uk-UA',{weekday:'long'})}</td>${ml.map(m=>`<td class="l">${d.dishes.filter(e=>e.m===m).map(e=>{const x=dishById(e.id);return x?`${dishLine(x,false)}<br><small>${fmtq(num(x.out[0]),0)} / ${fmtq(num(x.out[1]),0)} г</small>`:''}).join('<br>')}</td>`).join('')}</tr>`).join('')}</tbody></table>
+  <p style="font-size:12px">Вихід страв: ясла (1–4 роки) / садок (4–6(7) років). Алергени: ${esc(S.meta.legend||'')}</p>`+signs(y,[['nurse','Медична сестра'],['resp','Відповідальний за харчування']]);
+  return docWrap('Меню на тиждень',h,true)}
+function brakDoc(){const [y,mm]=S.cur.split('-'),m=month();
+  const rows=sortDays(m).map(d=>{const B=m.brak[d.id]||{};return d.dishes.map((e,ix)=>({e,ix})).sort((a,b)=>MORDER.indexOf(a.e.m)-MORDER.indexOf(b.e.m)).map(({e,ix})=>{const x=dishById(e.id),v=B[ix]||{};if(!x)return '';
+    return `<tr><td>${dmy(d.date)}</td><td>${v.t||''}</td><td class="l">${MEALS[e.m]}: ${esc(x.name)}</td><td>${fmtq(num(x.out[0]),0)} / ${fmtq(num(x.out[1]),0)}</td><td class="l">${esc(v.o||'')}</td><td>${v.r==='ok'?'Дозволено до видачі':v.r==='no'?'Не дозволено':''}</td><td>${v.p?'відібрано':''}</td><td></td></tr>`}).join('')}).join('');
+  const comm=(S.meta.comm||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const h=`<div>${esc(S.meta.inst||'')}</div><h1>Журнал бракеражу готової продукції</h1><p class="subt">${MONTHS_GEN[+mm-1]} ${y} року</p>
+    <table><thead><tr><th>Дата</th><th>Час</th><th>Страва</th><th>Вихід, г (ясла / садок)</th><th>Органолептична оцінка</th><th>Рішення</th><th>Добова проба</th><th>Підписи членів комісії</th></tr></thead><tbody>${rows}</tbody></table>
+    ${comm.length?`<h3>Склад бракеражної комісії</h3><div class="sg" style="display:grid;gap:14px">${comm.map(c=>`<div>${esc(c)} <span class="line"></span></div>`).join('')}</div>`:''}`;
+  return docWrap('Журнал бракеражу',h,true)}
+function normDoc(){const W=weeksOfMonth(),w=W[S.wk],[y]=S.cur.split('-'),R=normRows(w.days);
+  const h=`<div>${esc(S.meta.inst||'')}</div><h1>Аналіз виконання норм харчування</h1><p class="subt">тиждень з ${dmy(w.days[0].date)} по ${dmy(w.days[w.days.length-1].date)} (${w.days.length} дн.), на 1 дитину</p>
+  <table><thead><tr><th>Група продуктів</th>${AG.map(a=>`<th>${a.c}<br>факт / норма</th><th>%</th><th>Висновок</th>`).join('')}</tr></thead><tbody>${R.map(({n,cells})=>`<tr><td class="l">${esc(n.n)}</td>${cells.map(c=>`<td>${n.t==='cnt'?`${fmtq(c.fact,0)} / ${fmtq(c.target,1)} порц.`:`${fmtq(c.fact,1)} / ${fmtq(c.target,1)} ${n.u}`}</td><td>${isFinite(c.pct)?fmtq(c.pct,0)+'%':'—'}</td><td>${c.st[1]}</td>`).join('')}</tr>`).join('')}</tbody></table>
+  <p style="font-size:12px">Норми — Додаток 1 до Норм харчування у закладах освіти (постанова КМУ від 24.03.2021 № 305). Допустиме відхилення маси нетто порції 5–10%; норми солі, цукру, какао, чаю виконані при ≥50%.</p>`+signs(y,[['nurse','Медична сестра'],['resp','Відповідальний за харчування']]);
+  return docWrap('Аналіз виконання норм',h,true)}
+function download(name,content,type='text/html;charset=utf-8'){const b=content instanceof Blob?content:new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+function exportXlsx(){
+  if(!window.XLSX){toast('Excel ще завантажується, спробуйте за мить');return}
+  const [y,mm]=S.cur.split('-'),mon=MONTHS_GEN[+mm-1],t=monthTotals(),CP=costing().prod,wb=XLSX.utils.book_new();
+  const add=(name,rows)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),name);
+  add('Звіт',[[`Звіт про харчування за ${mon} ${y}`],['Днів',t.days],['Дітоднів',t.kd[0]+t.kd[1]],['Вартість, грн',+t.cost.toFixed(2)],[],['Вікова група','Дітоднів','Сума, грн'],...AG.map((a,i)=>[a.c,t.kd[i],+t.gc[i].toFixed(2)]),[],['Група','Дітоднів','Сума, грн'],...groupStats().map(x=>[x.g.name,x.kd,+x.sum.toFixed(2)])]);
+  add('Рух продуктів',[['Продукт','Од.','Залишок на поч.','Сума','Надійшло','Сума','Видано','Сума','Списано','Сума','Залишок на кін.','Сума'],...allProducts().filter(p=>CP[p]).map(p=>{const r=CP[p];return [p,su(p),+r.startQ.toFixed(3),+r.startS.toFixed(2),+r.inQ.toFixed(3),+r.inS.toFixed(2),+r.usedQ.toFixed(3),+r.usedS.toFixed(2),+r.wrQ.toFixed(3),+r.wrS.toFixed(2),+r.endQ.toFixed(3),+r.endS.toFixed(2)]})]);
+  const m=month(),days=sortDays(m);
+  add('Журнал',[['Дата','Прийом','Страва',...AG.map(a=>a.a+', дітей')],...days.flatMap(d=>{const k=K(d);return d.dishes.map(e=>[dmy(d.date),MEALS[e.m],dishById(e.id)?.name||'',k[0],k[1]])})]);
+  add('Табель',[['Дитина','Група','Вік','Пільга',...days.map(d=>dmy(d.date)),'Днів','Нараховано','Пільга','До сплати'],...S.meta.kids.map(x=>{const f=kidFee(x);const gg=GR().find(g=>g.id===x.grp);return [x.name,gg?.name||'',gg?AG[ageOf(x,gg)].s:'',catOf(x.cat)?.n||'',...days.map(d=>(m.tab[d.id]||{})[x.id]?1:''),f.days,+f.full.toFixed(2),+f.ben.toFixed(2),+f.pay.toFixed(2)]})]);
+  add('Норми 305',[['Група продуктів',...AG.flatMap(a=>[a.a+' факт',a.a+' норма',a.a+' %'])],...normRows(days).map(({n,cells})=>[n.n,...cells.flatMap(c=>[+c.fact.toFixed(2),+c.target.toFixed(2),isFinite(c.pct)?Math.round(c.pct):''])])]);
+  add('Страви',[['Страва','Прийом','Продукт',...AG.flatMap(a=>[a.a+' брутто',a.a+' нетто'])],...S.meta.dishes.flatMap(d=>d.items.map(it=>[d.name,MEALS[d.meal]||'',it.p,num(it.g[0]),netv(it,0),num(it.g[1]),netv(it,1)]))]);
+  download(`Харчування ЗДО ${mon} ${y}.xlsx`,new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})],{type:'application/octet-stream'}));
+}
+
+/* ================= події ================= */
+const $main=document.getElementById('main');
+let toastT;function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('on'),2200)}
+document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.tab=b.dataset.tab;S.confirm=null;try{localStorage.setItem('zdo_tab',S.tab)}catch(e){}render()});
+document.getElementById('banner').addEventListener('click',e=>{if(e.target.closest('[data-act="clearAll"]')){wipe();toast('Чистий аркуш. Почніть із вкладки «Заклад»')}});
+function wipe(){const old=[...(S.meta.months||[])];
+  S.meta={v:1,products:{},dishes:[],months:[],groups:[],kids:[],cats:DEF_CATS.map(([n,d])=>({id:uid(),n,d})),meals:['b','l','d'],fee:{mode:'pct',pct:60,fix:[0,0]},norms:{},inst:'',head:'',resp:'',nurse:'',accountant:'',comm:'',legend:'',costMethod:'fifo'};
+  S.months={};S.example=false;try{old.forEach(k=>localStorage.removeItem('zdo_m-'+k))}catch(e){}
+  dirty.add('meta');flush();S.tab='settings';render()}
+const dayOf=id=>month().days.find(d=>d.id===id);
+const dish=id=>dishById(id);
+function newDay(date,from){const m=month();const d={id:uid(),date,dishes:from?from.dishes.map(x=>({...x})):[],kids:from?[...(from.kids||[0,0])]:[0,0],cnt:from?{...(from.cnt||{})}:{}};m.days.push(d);ensureMonthListed(S.cur);return d}
+function nextFree(after){const [y,mm]=S.cur.split('-').map(Number),last=new Date(y,mm,0).getDate(),used=new Set(month().days.map(d=>d.date));
+  let start=after?+after.slice(8)+1:1;for(let i=start;i<=last;i++){const s=`${y}-${pad(mm)}-${pad(i)}`,wd=new Date(s+'T12:00').getDay();if(wd&&wd<6&&!used.has(s))return s}
+  for(let i=1;i<=last;i++){const s=`${y}-${pad(mm)}-${pad(i)}`;if(!used.has(s))return s}return `${y}-${pad(mm)}-01`}
+$main.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act,M=S.meta,mk='m-'+S.cur;
+  const go=(...k)=>{touch(...k);render()};
+  switch(a){
+    case 'mprev':S.cur=shiftKey(S.cur,-1);S.wk=0;S.bday=null;render();break;
+    case 'mnext':S.cur=shiftKey(S.cur,1);S.wk=0;S.bday=null;render();break;
+    case 'ask':S.confirm=b.dataset.k;render();break;
+    case 'cancel':S.confirm=null;render();break;
+    case 'goJournal':S.tab='journal';render();break;
+    case 'addDay':{const m=month(),last=sortDays(m).slice(-1)[0];newDay(nextFree(last&&last.date));go('meta',mk);break}
+    case 'copyDay':{const src=dayOf(b.dataset.day);const d=newDay(nextFree(src.date),src);toast('Додано '+dmy(d.date));go('meta',mk);break}
+    case 'rmDay':{const m=month();m.days=m.days.filter(d=>d.id!==b.dataset.day);delete m.tab[b.dataset.day];delete m.brak[b.dataset.day];S.confirm=null;go(mk);break}
+    case 'rmDish':{const d=dayOf(b.dataset.day);d.dishes.splice(+b.dataset.ix,1);delete month().brak[d.id];go(mk);break}
+    case 'tg':S.tg=b.dataset.g;render();break;
+    case 'allDay':{const m=month(),g=GR().find(x=>x.id===S.tg),t=m.tab[b.dataset.day]||(m.tab[b.dataset.day]={}),ks=kidsOf(g.id),all=ks.every(x=>t[x.id]);ks.forEach(x=>{if(all)delete t[x.id];else t[x.id]=1});t['g:'+g.id]=1;go(mk);break}
+    case 'rmKid':M.kids=M.kids.filter(x=>x.id!==b.dataset.kid);S.confirm=null;go('meta');break;
+    case 'buys':S.openBuys=S.openBuys===b.dataset.p?null:b.dataset.p;render();break;
+    case 'rmBuy':{const st=month().stock[b.dataset.p];st.buys=st.buys.filter(x=>x.id!==b.dataset.b);go(mk);break}
+    case 'delP':{const p=b.dataset.p;delete M.products[p];M.dishes.forEach(d=>d.items=d.items.filter(i=>i.p!==p));delete month().stock[p];S.confirm=null;go('meta',mk);break}
+    case 'xlsx':exportXlsx();break;
+    case 'repFile':download(`Звіт харчування ${MONTHS_GEN[+S.cur.split('-')[1]-1]} ${S.cur.split('-')[0]}.html`,reportDoc());break;
+    case 'wk':S.wk=+b.dataset.i;render();break;
+    case 'normFile':download('Аналіз норм.html',normDoc());break;
+    case 'normReset':M.norms={};go('meta');toast('Повернуто значення постанови');break;
+    case 'weekFile':download('Меню на тиждень.html',weekDoc());break;
+    case 'brFile':download(`Журнал бракеражу ${MONTHS_GEN[+S.cur.split('-')[1]-1]}.html`,brakDoc());break;
+    case 'brFill':{const m=month(),d=dayOf(S.bday),B=m.brak[d.id]||(m.brak[d.id]={});d.dishes.forEach((x,ix)=>{const v=B[ix]||(B[ix]={});v.t=v.t||MTIME[x.m];v.r=v.r||'ok';v.p=v.p??1});go(mk);break}
+    case 'openDish':S.openDish=S.openDish===b.dataset.d?null:b.dataset.d;render();break;
+    case 'dupDish':{const d=dish(b.dataset.d),c=JSON.parse(JSON.stringify(d));c.id=uid();c.name=d.name+' (копія)';M.dishes.splice(M.dishes.indexOf(d)+1,0,c);S.openDish=c.id;go('meta');break}
+    case 'rmDishCat':{M.dishes=M.dishes.filter(d=>d.id!==b.dataset.d);S.confirm=null;go('meta');break}
+    case 'addItem':{const d=dish(b.dataset.d);d.items.push({p:'',g:['',''],n:['','']});go('meta');break}
+    case 'rmItem':{const d=dish(b.dataset.d);d.items.splice(+b.dataset.ii,1);go('meta');break}
+    case 'rmGroup':M.groups=M.groups.filter(g=>g.id!==b.dataset.g);M.kids=M.kids.filter(x=>x.grp!==b.dataset.g);S.confirm=null;go('meta');break;
+    case 'rmCat':M.cats=M.cats.filter(c=>c.id!==b.dataset.c);M.kids.forEach(x=>{if(x.cat===b.dataset.c)x.cat=''});S.confirm=null;go('meta');break;
+    case 'backup':download(`Резервна копія харчування ЗДО ${isoD(new Date())}.json`,JSON.stringify({app:'zdo-food',meta:S.meta,months:S.months}),'application/json');break;
+    case 'wipeAll':S.confirm=null;wipe();toast('Усі дані стерто');break;
+  }
+});
+$main.addEventListener('submit',e=>{e.preventDefault();const f=e.target,M=S.meta;
+  if(f.id==='addProdForm'){const p=normName(f.querySelector('#newProd').value);if(!p)return;M.products[p]=M.products[p]||{unit:f.querySelector('#newUnit').value,price:0,grp:''};month().stock[p]=month().stock[p]||{buys:[]};S.openBuys=p;ensureMonthListed(S.cur);touch('meta','m-'+S.cur);render();return}
+  if(f.classList.contains('buyform')){const p=f.dataset.p,q=num(f.q.value),pr=num(f.pr.value);if(!q){toast('Вкажіть кількість');return}const st=month().stock[p]||(month().stock[p]={buys:[]});st.buys=st.buys||[];st.buys.push({id:uid(),q,pr,date:f.d.value||''});if(pr)M.products[p]={...(M.products[p]||{unit:'г'}),price:pr};ensureMonthListed(S.cur);touch('meta','m-'+S.cur);render();return}
+  if(f.id==='addKidForm'){const names=f.querySelector('#newKid').value.split(/[,;\n]/).map(s=>s.trim()).filter(Boolean);if(!names.length)return;const cat=f.querySelector('#newKidCat').value;const ageEl=f.querySelector('#newKidAge'),age=ageEl?+ageEl.value:undefined;names.forEach(n=>M.kids.push({id:uid(),name:n,grp:S.tg,cat,...(ageEl?{age}:{})}));M.kids.sort((a,b)=>a.name.localeCompare(b.name,'uk'));touch('meta');render();toast(names.length>1?`Додано ${names.length} дітей`:'Дитину додано');return}
+  if(f.id==='addDishForm'){const n=f.querySelector('#newDish').value.trim();if(!n)return;const d={id:uid(),name:n,meal:f.querySelector('#newDishMeal').value,ng:'',out:['',''],kcal:['',''],alg:'',items:[{p:'',g:['',''],n:['','']}]};M.dishes.push(d);S.openDish=d.id;touch('meta');render();return}
+  if(f.id==='addGroupForm'){const n=f.querySelector('#newGroup').value.trim();if(!n)return;const av=f.querySelector('#newGroupAge').value;M.groups.push({id:uid(),name:n,age:av==='mix'?1:+av,mixed:av==='mix',total:''});touch('meta');render();return}
+  if(f.id==='addCatForm'){const n=f.querySelector('#newCat').value.trim();if(!n)return;M.cats.push({id:uid(),n,d:100});touch('meta');render();return}
+});
+$main.addEventListener('change',e=>{
+  const el=e.target,f=el.dataset.f,M=S.meta,mk='m-'+S.cur;
+  if(el.id==='restoreFile'){const file=el.files[0];if(!file)return;const r=new FileReader();r.onload=()=>{try{const o=JSON.parse(r.result);if(!o.meta)throw 0;applyData(o.meta,o.months);dirty.add('meta');Object.keys(S.months).forEach(k=>dirty.add('m-'+k));S.meta.months=[...new Set([...S.meta.months,...Object.keys(S.months)])].sort();flush();render();toast('Дані відновлено')}catch(x){toast('Цей файл не схожий на резервну копію')}};r.readAsText(file);return}
+  if(!f)return;
+  const go=(...k)=>{touch(...k);render()};
+  const day=el.dataset.day?dayOf(el.dataset.day):null,d=el.dataset.d?dish(el.dataset.d):null,v=el.value;
+  switch(f){
+    case 'date':day.date=v||day.date;go(mk);break;
+    case 'cnt':day.cnt=day.cnt||{};day.cnt[el.dataset.g]=num(v);go(mk);break;
+    case 'kids':day.kids[+el.dataset.i]=num(v);go(mk);break;
+    case 'addDish':if(v){day.dishes.push({id:v,m:el.dataset.m});go(mk)}break;
+    case 'tick':{const m=month(),t=m.tab[day.id]||(m.tab[day.id]={}),kid=M.kids.find(x=>x.id===el.dataset.kid);if(el.checked)t[kid.id]=1;else delete t[kid.id];t['g:'+kid.grp]=1;go(mk);break}
+    case 'kidCat':M.kids.find(x=>x.id===el.dataset.kid).cat=v;go('meta');break;
+    case 'unit':M.products[el.dataset.p]={...(M.products[el.dataset.p]||{}),unit:v};go('meta',mk);break;
+    case 'written':case 'start':case 'startPr':{const st=month().stock[el.dataset.p]||(month().stock[el.dataset.p]={buys:[]});st[f]=f==='start'?(v===''?'':num(v)):num(v);ensureMonthListed(S.cur);go(mk);break}
+    case 'bdate':case 'bq':case 'bpr':{const b=month().stock[el.dataset.p].buys.find(x=>x.id===el.dataset.b);b[{bdate:'date',bq:'q',bpr:'pr'}[f]]=f==='bdate'?v:num(v);go(mk);break}
+    case 'costMethod':M.costMethod=v;go('meta');break;
+    case 'normP':case 'normM':{const k=el.dataset.k,base=NG().find(n=>n.k===k),o=M.norms[k]||(M.norms[k]={p:base.p,m:[...base.m]});if(f==='normP')o.p=num(v);else o.m[+el.dataset.i]=num(v);go('meta');break}
+    case 'bday':S.bday=v;render();break;
+    case 'brT':case 'brO':case 'brR':case 'brP':{const m=month(),B=m.brak[S.bday]||(m.brak[S.bday]={}),r=B[el.dataset.ix]||(B[el.dataset.ix]={});r[{brT:'t',brO:'o',brR:'r',brP:'p'}[f]]=f==='brP'?(el.checked?1:0):v;touch(mk);if(f==='brR')render();break}
+    case 'dname':d.name=v.trim()||d.name;go('meta');break;
+    case 'dmeal':d.meal=v;go('meta');break;
+    case 'dng':d.ng=v;go('meta');break;
+    case 'dout':d.out[+el.dataset.i]=v===''?'':num(v);go('meta');break;
+    case 'dkcal':d.kcal[+el.dataset.i]=v===''?'':num(v);go('meta');break;
+    case 'dalg':d.alg=v.trim();go('meta');break;
+    case 'ip':{const p=normName(v),it=d.items[+el.dataset.ii];it.p=p;if(p&&!M.products[p])M.products[p]={unit:'г',price:0,grp:''};go('meta');break}
+    case 'pgrp':M.products[el.dataset.p]={...(M.products[el.dataset.p]||{unit:'г'}),grp:v};go('meta');break;
+    case 'ig':case 'in':{const it=d.items[+el.dataset.ii];it[f==='ig'?'g':'n'][+el.dataset.i]=v===''?'':num(v);go('meta');break}
+    case 'meta':M[el.dataset.k]=v;touch('meta');break;
+    case 'mealOn':{const s=new Set(M.meals);if(el.checked)s.add(el.dataset.m);else s.delete(el.dataset.m);if(!s.size){toast('Залиште хоча б один прийом їжі');render();break}M.meals=MORDER.filter(m=>s.has(m));go('meta');break}
+    case 'feeMode':M.fee.mode=v;go('meta');break;
+    case 'feePct':M.fee.pct=num(v);go('meta');break;
+    case 'feeFix':M.fee.fix[+el.dataset.i]=num(v);go('meta');break;
+    case 'gname':{const g=GR().find(x=>x.id===el.dataset.g);g.name=v.trim()||g.name;go('meta');break}
+    case 'gmixed':{const g=GR().find(x=>x.id===el.dataset.g);g.mixed=el.checked;if(g.mixed)kidsOf(g.id).forEach(x=>{if(x.age!==0&&x.age!==1)x.age=g.age});go('meta','m-'+S.cur);break}
+    case 'kidAge':M.kids.find(x=>x.id===el.dataset.kid).age=+v;go('meta');break;
+    case 'gage':GR().find(x=>x.id===el.dataset.g).age=+v;go('meta');break;
+    case 'gtotal':GR().find(x=>x.id===el.dataset.g).total=num(v)||'';go('meta');break;
+    case 'catN':{const c=catOf(el.dataset.c);c.n=v.trim()||c.n;go('meta');break}
+    case 'catD':catOf(el.dataset.c).d=Math.min(100,Math.max(0,num(v)));go('meta');break;
+  }
+});
+function flushNow(){if(dirty.size){clearTimeout(saveT);flush()}}
+addEventListener('pagehide',flushNow);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushNow()});
+loadSaved();render();
+
+</script>
+
+<style>
+body.locked .wrap,body.locked .toast{display:none}
+#gate{position:fixed;inset:0;display:none;place-items:center;background:var(--bg);z-index:50;padding:20px max(16px,env(safe-area-inset-left,0px))}
+body.locked #gate{display:grid}
+#gate .box{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:28px 24px;max-width:420px;width:100%;display:grid;gap:14px}
+#gate h1{font-size:24px}
+#gate input{font-size:18px;letter-spacing:.06em;text-transform:uppercase;padding:10px 12px;width:100%}
+#gate .err{color:var(--bad);font-size:14px;min-height:1.2em;margin:0}
+#gate .note{font-size:13px;color:var(--muted);margin:0}
+</style>
+<div id="gate" role="dialog" aria-labelledby="gateTitle">
+  <form class="box" id="gateForm">
+    <h1 id="gateTitle">Облік харчування ЗДО</h1>
+    <p class="sub" style="margin:0">Введіть код доступу, який ви отримали після оплати.</p>
+    <input id="gateCode" placeholder="SADOK-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Код доступу">
+    <button class="btn pri" type="submit">Увійти</button>
+    <p class="err" id="gateErr"></p>
+    <p class="note">Код вводиться один раз — браузер його запамʼятає.</p>
+    <p class="note credit" style="margin:0">Створено © Галина Гайдай</p>
+  </form>
+</div>
+<script>
+(function(){
+  const SALT='zdo-galyna-2026';
+  const OK=new Set(["0b46d0d489024e50500378acbf693c2f56eb0fe981db72779c30c841cfcd232d", "1a218b602426b891e674c1ed868634c9a26fbc5b4228140b7cbe05a76786ca70", "bbf9b4ffc15857a316dcf944e8c6ab774d742c4a313843b7920bf757451fe2d6", "dd5d380a2a183260454ea0f1010aa672ea18eef88a9f83ff65459e792339d599", "8915711abd11cc783461a7643c7d20821b539100bb92babbfc34176fceffb0a7", "9187258cc4771de812e3749c2e7b78798de9b6aa2a6fa5685b0de8af6767adfa", "074d4d51c9964fb1bcaea7312e732c3188da045c9b9399511a55738c43898467", "9b886e7f0b8a01ae449a3bdd8ec0b8894ea89ee37fece3f4a621ad1deb993400", "a0d9f5b95fe0761552665880ba834520e2dc612c92147d89a30890f9f347c13a", "49539c9eab963d3a4b38855963cd9722daed7f808a151f5619ea612e31ffcd5c", "b116a5f184cb0f796aaed7c1bed028276f8c4d2fd9e6136941d3626a4e405684", "e6b858a663cfce430992bafc403419a5a0c4eada8743820bdd724539b29b6138", "9a1638e8c1dcfa7e0968780f5df1f9b4d2d86ad22e8b98a0eac718e4db8c016b", "43631f8b6e52d649e7d60bc830fe6bc76271ae574d7ff6b07335271eca70c678", "1725258c6f1cd3f02b63bca8b733286ea19c07da35e0616d807a893df7761b1d", "7d4fd3a00a3e758fe02e302fec5798bb9130c4f2eb6c0e191b40f12e2b01261e", "d8730b8201e039ef8da29eb33110ad09056f909159eb99978b42f411049ac1e1", "e1843483f1b6058bf09fa41e1bf64186282cf98a2b37f18be9abea4f8590cf28", "8e723b34569962665f756b68af117370ff7105e16c8de91540962a7172903857", "7d6c25134d6afcb117a81c6cc8f4fc1341967bc79f7d1abc15657f1492472f48", "315fade8371116fede89671cc666a174b072d87b482e9a791634dbfca607021d", "54240a2406a0e2dd28a6bfbda8dc317d74561322a41cb6d88c78eda1e9512804", "685c4eb69915c0c98865dea059f4a96a733d523f623cae100cb5504c232851d2", "48d8d099b4978d372b86c19c2b9a471e29b50d0b962af8392e8e01cad8d58389", "517db9a74499901aee2ba018ed09523d88a6f1efec0a56ea52c6f2cb10a4ebb0", "faff80a4dad66080f7d3c2ba168a0956c1b8d7055d263fd390033080ecc1046a", "00a923cd99f87bf41240135da0832d9d6f52791fd9fa3bb4dca32cbb0f36ae99", "fd0f1a0d15b271069f15de1024bf00da22998232885567d5266fb399ff250bc7", "b1a43b9664c3c487c9efda49ca798dca128400d6c87588544b1187dac9e7c725", "cd7b385acc6e46031fb9b2206ec23e54ab595a72928b877be01447710f6374a9", "acdc01fecf99992ea3f064facefbd4886490e886f6633958c1527ec3729ac3c9", "f0bc75cf05b6b130b60dfe9afd0bba5ed43b96899158d0b05b947e9304a9a4fa", "da6a5834174fc0abc8a148ecb9878e087b4d99f90b8d0efacaab561aa7094b1e", "6b3d6a1b8a81a07dcd1a5aa1dd8dd71bdca6802474f22f9c4bd71de08a43a95f", "68a47791aa82959524726739ad302efa4c0add76f8b96dd5ceecca18b24641c7", "0f80dc1a06a86a4f597aaf7116c3d26d6b0b2b08747729584e2bbbe3603d0afe", "8c2a87177bef5141f91c427e4503b430bc80a4fd8824b5f9a2039dda6bdbacd4", "a5c7b453219e100ba8fae33cb130635bce8af7c0f2bf1c62485e28233c2db39a", "2cf7b3cc8700104624e3a03663cd175706561de380e3299d32b102a9fb408d85", "bce06312c6b808ec0ca57dd7b5e3d6188e12ea150f9f127487de314fd384b137", "5b21d915223a685485629c245c632358ed8678c1e1d5082ff2964de90b12ebbf", "c162076af7831bd86ad0c1ef8a78d3ecc0f274c6c0b8280734271992679b5ea1", "187727c69c3b5c13623af8f6104b06d0d4e8e967bac0126ae7c1a7a82829bd54", "9b13e767971977ae55b2502aea2949ec7b85b8a93e8a5a1ce34f9b89a415aa4f", "5e6fadb3fefaaacbfb29b0ba6c4c394e0864b9ce7905192e30298aac79931b39", "6e7f576bb85c99aa5d4b04ea954e31a2b41e0715071927ca745610084d0292e3", "c0db88f8a1db6434b0f7d9d413c3865e8a49faf045418265f8cbf7e1d3315d59", "d69f1b6779cfaec15114247be4fd30378812741a515e7af1037bf1ec069dca4d", "8361c04a66aa0cc15dd7e334c1bf9ba653fc674bcfc011ca18c103d649fac004", "f227f59b251c7136704649ce745f7eb18c04107fdc5bec7f3c073c956c76a774"]);
+  function sha256(str){ // компактна реалізація SHA-256
+    const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+    const b=new TextEncoder().encode(str),l=b.length,n=((l+9+63)>>6)<<6,m=new Uint8Array(n);m.set(b);m[l]=0x80;
+    const dv=new DataView(m.buffer);dv.setUint32(n-4,l*8);dv.setUint32(n-8,Math.floor(l/0x20000000));
+    let h=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];const w=new Array(64);
+    const r=(x,y)=>(x>>>y)|(x<<(32-y));
+    for(let o=0;o<n;o+=64){for(let i=0;i<16;i++)w[i]=dv.getUint32(o+i*4);
+      for(let i=16;i<64;i++){const s0=r(w[i-15],7)^r(w[i-15],18)^(w[i-15]>>>3),s1=r(w[i-2],17)^r(w[i-2],19)^(w[i-2]>>>10);w[i]=(w[i-16]+s0+w[i-7]+s1)|0}
+      let[a,b2,c,d,e,f,g,hh]=h;
+      for(let i=0;i<64;i++){const S1=r(e,6)^r(e,11)^r(e,25),ch=(e&f)^(~e&g),t1=(hh+S1+ch+K[i]+w[i])|0,S0=r(a,2)^r(a,13)^r(a,22),mj=(a&b2)^(a&c)^(b2&c),t2=(S0+mj)|0;
+        hh=g;g=f;f=e;e=(d+t1)|0;d=c;c=b2;b2=a;a=(t1+t2)|0}
+      h=h.map((v,i)=>(v+[a,b2,c,d,e,f,g,hh][i])|0)}
+    return h.map(v=>(v>>>0).toString(16).padStart(8,'0')).join('');
+  }
+  /* АДРЕСА СЕРВЕРА АКТИВАЦІЙ: вставте сюди адресу веб-застосунку Google Apps Script (закінчується на /exec).
+     Порожньо — коди перевіряються лише списком у сторінці (без обмеження пристроїв). */
+  const API_URL='https://script.google.com/macros/s/AKfycbyaFxC39n1yyk9cWP0jMBr1RWWygBIPBsutrIA68kL6XgSnyHP2DUEerIB_gfB0HQZ7/exec';
+  const norm=v=>String(v||'').toUpperCase().replace(/[\s–—_]/g,'').replace(/^SADOK-?/,'SADOK-').replace(/^(SADOK-[A-Z0-9]{4})-?([A-Z0-9]{4})$/,'$1-$2');
+  const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
+  let dev=ls.get('zdo_dev');if(!dev){dev=Date.now().toString(36)+Math.random().toString(36).slice(2,10);ls.set('zdo_dev',dev)}
+  async function ask(action,code){if(!API_URL)return null;
+    try{const r=await fetch(API_URL+'?action='+action+'&code='+encodeURIComponent(code)+'&dev='+encodeURIComponent(dev),{cache:'no-store'});const j=await r.json();return j&&(j.reason==='server'||j.reason==='setup')?null:j}catch(e){return null}}
+  const MSG={used:'Цей код уже активовано на іншому пристрої. Кожен код — для одного покупця.',off:'Цей код доступу вимкнено. Зверніться до автора програми.',unknown:'Код не знайдено. Зверніться до автора програми.',bad:'Код не підходить.'};
+  const err=document.getElementById('gateErr'),btn=document.querySelector('#gateForm button');
+  function lock(msg){ls.del('zdo_access');ls.del('zdo_code');ls.del('zdo_pending');document.body.classList.add('locked');if(msg)err.textContent=msg;setTimeout(()=>document.getElementById('gateCode').focus(),50)}
+  const saved=ls.get('zdo_access'),savedCode=ls.get('zdo_code');
+  if(!(saved&&OK.has(saved))||(API_URL&&!savedCode))lock();
+  else if(API_URL){ /* сайт відкривається одразу, перевірка йде у фоні; без інтернету робота не блокується */
+    ask(ls.get('zdo_pending')?'activate':'check',savedCode).then(j=>{if(!j)return;if(j.ok)ls.del('zdo_pending');else lock(MSG[j.reason]||MSG.bad)})}
+  document.getElementById('gateForm').addEventListener('submit',async e=>{
+    e.preventDefault();const c=norm(document.getElementById('gateCode').value),hs=sha256(SALT+c);
+    if(!c){err.textContent='Впишіть код доступу.';return}
+    if(!OK.has(hs)){err.textContent='Код не підходить. Перевірте, чи правильно його введено (літери й цифри, через дефіс).';return}
+    btn.disabled=true;btn.textContent='Перевіряю код…';err.textContent='';
+    const j=await ask('activate',c);
+    btn.disabled=false;btn.textContent='Увійти';
+    if(j&&!j.ok){err.textContent=MSG[j.reason]||MSG.bad;return}
+    ls.set('zdo_access',hs);ls.set('zdo_code',c);
+    if(API_URL&&!j)ls.set('zdo_pending','1');else ls.del('zdo_pending');
+    document.body.classList.remove('locked');
+  });
+})();
+</script>
+
+</body>
+</html>
