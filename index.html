@@ -700,7 +700,7 @@ function rSummary(){
       :'<p class="hint">Плата батьків рахується за табелем. Заповніть табель відвідування — і тут зʼявиться нарахування по дітях та сума пільг.</p>'}</div>
   </div>
   <div class="card"><h2>Видані продукти</h2>${ps.length?`<div class="tw"><table><thead><tr><th>Продукт</th><th>Кількість</th><th>Сума, грн</th></tr></thead><tbody>${ps.map(p=>`<tr><td class="name">${esc(p)}</td><td>${fmtq(u[p])} ${su(p)}</td><td>${fmt(uS(p))}</td></tr>`).join('')}</tbody></table></div>`:'<p class="hint">Поки що немає даних за цей місяць.</p>'}</div>
-  <p class="hint">Звіт для друку містить загальні показники, дані по групах, плату батьків і пільги, виконання норм за місяць, рух продуктів і підписи. Файл відкривається в браузері або Word, далі «Друк», аркуш А4. Назва закладу та підписанти — у вкладці «Заклад».</p>`;
+  <p class="hint">Звіт для друку містить загальні показники, дані по групах, плату батьків і пільги, виконання норм за місяць, рух продуктів і підписи. Файл завантажується у форматі Word (.doc) — відкрийте його у Word і друкуйте. Назва закладу та підписанти — у вкладці «Заклад».</p>`;
 }
 
 /* ---- страви ---- */
@@ -776,20 +776,39 @@ function rSettings(){
 }
 
 /* ================= документи ================= */
-const REP_CSS=`body{margin:0;background:#fff}.rep{max-width:190mm;margin:0 auto;padding:10px;background:#fff;color:#000;font-family:"Times New Roman",Times,serif;font-size:14px;line-height:1.35}
-.rep .top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start}.rep .ap{line-height:1.7;min-width:260px}
-.rep h1{text-align:center;font-size:18px;margin:22px 0 2px;text-transform:uppercase;font-weight:700}.rep .subt{text-align:center;margin:0 0 16px;font-size:15px}
-.rep h3{font-size:15px;margin:16px 0 6px}.rep table{width:100%;border-collapse:collapse;margin-bottom:6px}
-.rep th,.rep td{border:1px solid #000;padding:4px 6px;text-align:center;color:#000;background:#fff;vertical-align:top}.rep th{background:#eee;font-size:13px}
-.rep td.l{text-align:left}.rep tr.t td{font-weight:700;background:#f4f4f4}.rep table.mv th,.rep table.mv td{font-size:11px;padding:3px}
-.rep .kv td{border:0;text-align:left;padding:2px 0}.rep .kv td.v{text-align:right;font-weight:700;width:180px}
-.rep .signs{margin-top:28px;display:grid;grid-template-columns:1fr 150px;gap:16px;align-items:end}.rep .sg{display:grid;gap:18px}
-.rep .line{display:inline-block;min-width:130px;border-bottom:1px solid #000}.rep .mp{width:130px;height:130px;border:1.5px dashed #777;border-radius:50%;display:grid;place-items:center;color:#777;font-size:13px}
-.rep small{color:#333}`;
-const docWrap=(title,body,land)=>`<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:A4 ${land?'landscape':'portrait'};margin:12mm}${REP_CSS}${land?'.rep{max-width:277mm}':''}</style></head><body><div class="rep">${body}</div></body></html>`;
-const ln=v=>v?esc(v):'<span class="line"></span>';
-const apHead=y=>`<div class="top"><div>${esc(S.meta.inst||'')}</div><div class="ap">ЗАТВЕРДЖУЮ<br>Директор <span class="line"></span> ${esc(S.meta.head||'')}<br>«___» ______________ ${y} р.</div></div>`;
-function signs(y,keys=[['resp','Відповідальний за харчування'],['nurse','Медична сестра'],['accountant','Бухгалтер']]){return `<div class="signs"><div class="sg">${keys.map(([k,l])=>`<div>${l} <span class="line"></span> ${ln(S.meta[k])}</div>`).join('')}<div>Дата складання «___» ______________ ${y} р.</div></div><div class="mp">М. П.</div></div>`}
+/* Документи для друку зберігаються у форматі Word (.doc): відкриваються у Word, LibreOffice, Google Документах */
+const LINE='____________________';
+const REP_CSS=`body{font-family:"Times New Roman",serif;font-size:12pt;color:#000;background:#fff}
+h1{text-align:center;font-family:"Times New Roman",serif;font-size:14pt;margin:12pt 0 2pt;text-transform:uppercase;font-weight:bold}
+p.subt{text-align:center;margin:0 0 10pt;font-size:12pt}
+h3{font-size:12pt;margin:10pt 0 4pt;font-weight:bold}
+table{border-collapse:collapse;width:100%;margin-bottom:4pt}
+th,td{border:1px solid #000;padding:2pt 4pt;text-align:center;vertical-align:top;font-size:11pt}
+th{background:#e8e8e8;font-weight:bold;font-size:10pt}
+td.l{text-align:left}
+tr.t td{font-weight:bold;background:#f2f2f2}
+table.mv th,table.mv td{font-size:9pt;padding:1pt 2pt}
+table.kv td,table.nb td{border:none;text-align:left;padding:1pt 0}
+table.kv td.v{text-align:right;font-weight:bold;width:150pt}
+small{font-size:9pt}`;
+const docWrap=(title,body,land)=>'﻿'+`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${esc(title)}</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
+<style>@page Section1{size:${land?'841.9pt 595.3pt;mso-page-orientation:landscape':'595.3pt 841.9pt'};margin:1.5cm 1.5cm 1.5cm 1.5cm}div.Section1{page:Section1}
+${REP_CSS}</style></head><body><div class="Section1">${wordify(body)}</div></body></html>`;
+/* рамки й вирівнювання — атрибутами, щоб однаково виглядало у Word, LibreOffice, Google Документах */
+function wordify(h){const B='border:1px solid #000;';
+  h=h.replace(/<table class="(nb|kv)">([\s\S]*?)<\/table>/g,(m,c,inner)=>`<table width="100%" border="0" cellspacing="0" cellpadding="2" style="border:none;width:100%">`+
+    inner.replace(/<td class="v">/g,'<td align="right" style="border:none;font-weight:bold">').replace(/<td(?![^>]*align)( [^>]*)?>/g,(x,at)=>`<td align="left" valign="top"${at||''}>`).replace(/style="([^"]*)"(?=[^>]*>)/g,(x,st)=>`style="border:none;${st}"`)+'</table>');
+  h=h.replace(/<table( class="mv")?>/g,(m,c)=>`<table width="100%" border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;width:100%;${c?'font-size:9pt;':''}">`);
+  h=h.replace(/<th( [^>]*)?>/g,(m,at)=>`<th align="center" valign="middle" style="${B}background:#e8e8e8"${(at||'').replace(/style="[^"]*"/,'')}>`);
+  h=h.replace(/<td class="l"( [^>]*)?>/g,(m,at)=>`<td align="left" valign="top" style="${B}"${at||''}>`);
+  h=h.replace(/<td>/g,`<td align="center" valign="top" style="${B}">`);
+  h=h.replace(/<td colspan="(\d+)">/g,`<td colspan="$1" align="center" style="${B}">`);
+  h=h.replace(/<tr class="t">/g,'<tr style="font-weight:bold;background:#f2f2f2">');
+  return h}
+const ln=v=>v?esc(v):LINE;
+const apHead=y=>`<table class="nb"><tr><td style="width:55%">${esc(S.meta.inst||'')}</td><td style="width:45%;line-height:1.6" align="left">ЗАТВЕРДЖУЮ<br>Директор ${LINE} ${esc(S.meta.head||'')}<br>«___» ______________ ${y} р.</td></tr></table>`;
+function signs(y,keys=[['resp','Відповідальний за харчування'],['nurse','Медична сестра'],['accountant','Бухгалтер']]){return `<p>&nbsp;</p><table class="nb">${keys.map(([k,l])=>`<tr><td style="padding:6pt 0">${l} ${LINE} ${ln(S.meta[k])}</td></tr>`).join('')}<tr><td style="padding:6pt 0">Дата складання «___» ______________ ${y} р.&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;М. П.</td></tr></table>`}
 function reportDoc(){
   const [y,mm]=S.cur.split('-'),mon=MONTHS_GEN[+mm-1],t=monthTotals(),kdAll=t.kd[0]+t.kd[1],e=esc;let n=0;const sec=x=>`<h3>${++n}. ${x}</h3>`;
   let h=apHead(y)+`<h1>Звіт про організацію харчування дітей</h1><p class="subt">у закладі дошкільної освіти за ${mon} ${y} року</p>`;
@@ -819,7 +838,7 @@ function vymDoc(day){const [y]=S.cur.split('-'),B=mealBreak(day),c=dayCalc(day),
   <tr>${B.ms.map(()=>'<th>ясла, г</th><th>садок, г</th><th>всього</th>').join('')}</tr></thead><tbody>${rows}
   <tr class="t"><td></td><td class="l">Разом</td><td colspan="${B.ms.length*3+2}"></td><td></td><td>${fmt(T)}</td></tr></tbody></table>
   <p style="font-size:12px">Норми на 1 дитину брутто (г, яйця — шт). «Всього» — кількість до видачі в одиницях складу (кг або шт).</p>
-  <div class="signs"><div class="sg"><div>Директор <span class="line"></span> ${ln(S.meta.head)}</div><div>Медична сестра <span class="line"></span> ${ln(S.meta.nurse)}</div><div>Видав (комірник) <span class="line"></span></div><div>Отримав (кухар) <span class="line"></span></div></div><div></div></div>`;
+  <p>&nbsp;</p><table class="nb"><tr><td style="padding:5pt 0">Директор ${LINE} ${ln(S.meta.head)}</td><td style="padding:5pt 0">Медична сестра ${LINE} ${ln(S.meta.nurse)}</td></tr><tr><td style="padding:5pt 0">Видав (комірник) ${LINE}</td><td style="padding:5pt 0">Отримав (кухар) ${LINE}</td></tr></table>`;
   return docWrap(`Меню-вимога ${dmy(day.date)}`,h,true)}
 function weekDoc(){const W=weeksOfMonth(),w=W[S.wk],[y]=S.cur.split('-'),ml=MEAL_ON();
   const h=apHead(y)+`<h1>Меню</h1><p class="subt">на тиждень з ${dmy(w.days[0].date)} по ${dmy(w.days[w.days.length-1].date)}</p>
@@ -830,15 +849,16 @@ function brakDoc(){const [y,mm]=S.cur.split('-'),m=month();
   const rows=sortDays(m).map(d=>{const B=m.brak[d.id]||{};return d.dishes.map((e,ix)=>({e,ix})).sort((a,b)=>MORDER.indexOf(a.e.m)-MORDER.indexOf(b.e.m)).map(({e,ix})=>{const x=dishById(e.id),v=B[ix]||{};if(!x)return '';
     return `<tr><td>${dmy(d.date)}</td><td>${v.t||''}</td><td class="l">${MEALS[e.m]}: ${esc(x.name)}</td><td>${fmtq(num(x.out[0]),0)} / ${fmtq(num(x.out[1]),0)}</td><td class="l">${esc(v.o||'')}</td><td>${v.r==='ok'?'Дозволено до видачі':v.r==='no'?'Не дозволено':''}</td><td>${v.p?'відібрано':''}</td><td></td></tr>`}).join('')}).join('');
   const comm=(S.meta.comm||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  const h=`<div>${esc(S.meta.inst||'')}</div><h1>Журнал бракеражу готової продукції</h1><p class="subt">${MONTHS_GEN[+mm-1]} ${y} року</p>
+  const h=`<p>${esc(S.meta.inst||'')}</p><h1>Журнал бракеражу готової продукції</h1><p class="subt">${MONTHS_GEN[+mm-1]} ${y} року</p>
     <table><thead><tr><th>Дата</th><th>Час</th><th>Страва</th><th>Вихід, г (ясла / садок)</th><th>Органолептична оцінка</th><th>Рішення</th><th>Добова проба</th><th>Підписи членів комісії</th></tr></thead><tbody>${rows}</tbody></table>
-    ${comm.length?`<h3>Склад бракеражної комісії</h3><div class="sg" style="display:grid;gap:14px">${comm.map(c=>`<div>${esc(c)} <span class="line"></span></div>`).join('')}</div>`:''}`;
+    ${comm.length?`<h3>Склад бракеражної комісії</h3><table class="nb">${comm.map(c=>`<tr><td style="padding:5pt 0">${esc(c)} ${LINE}</td></tr>`).join('')}</table>`:''}`;
   return docWrap('Журнал бракеражу',h,true)}
 function normDoc(){const W=weeksOfMonth(),w=W[S.wk],[y]=S.cur.split('-'),R=normRows(w.days);
-  const h=`<div>${esc(S.meta.inst||'')}</div><h1>Аналіз виконання норм харчування</h1><p class="subt">тиждень з ${dmy(w.days[0].date)} по ${dmy(w.days[w.days.length-1].date)} (${w.days.length} дн.), на 1 дитину</p>
+  const h=`<p>${esc(S.meta.inst||'')}</p><h1>Аналіз виконання норм харчування</h1><p class="subt">тиждень з ${dmy(w.days[0].date)} по ${dmy(w.days[w.days.length-1].date)} (${w.days.length} дн.), на 1 дитину</p>
   <table><thead><tr><th>Група продуктів</th>${AG.map(a=>`<th>${a.c}<br>факт / норма</th><th>%</th><th>Висновок</th>`).join('')}</tr></thead><tbody>${R.map(({n,cells})=>`<tr><td class="l">${esc(n.n)}</td>${cells.map(c=>`<td>${n.t==='cnt'?`${fmtq(c.fact,0)} / ${fmtq(c.target,1)} порц.`:`${fmtq(c.fact,1)} / ${fmtq(c.target,1)} ${n.u}`}</td><td>${isFinite(c.pct)?fmtq(c.pct,0)+'%':'—'}</td><td>${c.st[1]}</td>`).join('')}</tr>`).join('')}</tbody></table>
   <p style="font-size:12px">Норми — Додаток 1 до Норм харчування у закладах освіти (постанова КМУ від 24.03.2021 № 305). Допустиме відхилення маси нетто порції 5–10%; норми солі, цукру, какао, чаю виконані при ≥50%.</p>`+signs(y,[['nurse','Медична сестра'],['resp','Відповідальний за харчування']]);
   return docWrap('Аналіз виконання норм',h,true)}
+const DOC='application/msword';
 function download(name,content,type='text/html;charset=utf-8'){const b=content instanceof Blob?content:new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 function exportXlsx(){
   if(!window.XLSX){toast('Excel ще завантажується, спробуйте за мить');return}
@@ -906,13 +926,13 @@ $main.addEventListener('click',e=>{
     case 'rmBuy':{const st=month().stock[b.dataset.p];st.buys=st.buys.filter(x=>x.id!==b.dataset.b);go(mk);break}
     case 'delP':{const p=b.dataset.p;delete M.products[p];M.dishes.forEach(d=>d.items=d.items.filter(i=>i.p!==p));delete month().stock[p];S.confirm=null;go('meta',mk);break}
     case 'xlsx':exportXlsx();break;
-    case 'repFile':download(`Звіт харчування ${MONTHS_GEN[+S.cur.split('-')[1]-1]} ${S.cur.split('-')[0]}.html`,reportDoc());break;
+    case 'repFile':download(`Звіт харчування ${MONTHS_GEN[+S.cur.split('-')[1]-1]} ${S.cur.split('-')[0]}.doc`,reportDoc(),DOC);break;
     case 'wk':S.wk=+b.dataset.i;render();break;
-    case 'normFile':download('Аналіз норм.html',normDoc());break;
+    case 'normFile':download('Аналіз норм.doc',normDoc(),DOC);break;
     case 'normReset':M.norms={};go('meta');toast('Повернуто значення постанови');break;
-    case 'vymFile':{const d=dayOf(b.dataset.day);download(`Меню-вимога ${dmy(d.date)}.html`,vymDoc(d));break}
-    case 'weekFile':download('Меню на тиждень.html',weekDoc());break;
-    case 'brFile':download(`Журнал бракеражу ${MONTHS_GEN[+S.cur.split('-')[1]-1]}.html`,brakDoc());break;
+    case 'vymFile':{const d=dayOf(b.dataset.day);download(`Меню-вимога ${dmy(d.date)}.doc`,vymDoc(d),DOC);break}
+    case 'weekFile':download('Меню на тиждень.doc',weekDoc(),DOC);break;
+    case 'brFile':download(`Журнал бракеражу ${MONTHS_GEN[+S.cur.split('-')[1]-1]}.doc`,brakDoc(),DOC);break;
     case 'brFill':{const m=month(),d=dayOf(S.bday),B=m.brak[d.id]||(m.brak[d.id]={});d.dishes.forEach((x,ix)=>{const v=B[ix]||(B[ix]={});v.t=v.t||MTIME[x.m];v.r=v.r||'ok';v.p=v.p??1});go(mk);break}
     case 'openDish':S.openDish=S.openDish===b.dataset.d?null:b.dataset.d;render();break;
     case 'dupDish':{const d=dish(b.dataset.d),c=JSON.parse(JSON.stringify(d));c.id=uid();c.name=d.name+' (копія)';M.dishes.splice(M.dishes.indexOf(d)+1,0,c);S.openDish=c.id;go('meta');break}
