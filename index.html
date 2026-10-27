@@ -178,6 +178,15 @@ table.buys input[type=number]{width:90px}
 .li.grp{border:1px solid var(--line);border-radius:8px;padding:8px 10px;gap:8px 12px}
 .li.grp>input:first-child{font-weight:600}
 .mb th.g,.mb td.g{border-left:1px solid var(--line)}
+#fmtDlg{position:fixed;inset:0;z-index:40;background:rgba(10,20,30,.45);display:grid;place-items:center;padding:20px max(16px,env(safe-area-inset-left,0px))}
+#fmtDlg[hidden]{display:none!important}
+#fmtDlg .fbox{background:var(--paper);border-radius:14px;padding:20px;max-width:520px;width:100%;display:grid;gap:12px;border:1px solid var(--line)}
+#fmtDlg h2{margin:0}
+#fmtDlg .fopts{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+#fmtDlg .fopts .btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;text-align:left}
+#fmtDlg .fopts .btn b{font-size:16px}
+#fmtDlg .fopts .btn small{font-weight:400;font-size:12px;opacity:.85}
+#fmtDlg>.fbox>.btn.ghost{justify-self:end}
 .credit{font-family:var(--f-display);font-weight:500;font-size:14px;color:var(--ink);margin-bottom:4px}
 footer{margin-top:30px;font-size:12px;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){.toast{transition:none}}
@@ -700,7 +709,7 @@ function rSummary(){
       :'<p class="hint">Плата батьків рахується за табелем. Заповніть табель відвідування — і тут зʼявиться нарахування по дітях та сума пільг.</p>'}</div>
   </div>
   <div class="card"><h2>Видані продукти</h2>${ps.length?`<div class="tw"><table><thead><tr><th>Продукт</th><th>Кількість</th><th>Сума, грн</th></tr></thead><tbody>${ps.map(p=>`<tr><td class="name">${esc(p)}</td><td>${fmtq(u[p])} ${su(p)}</td><td>${fmt(uS(p))}</td></tr>`).join('')}</tbody></table></div>`:'<p class="hint">Поки що немає даних за цей місяць.</p>'}</div>
-  <p class="hint">Звіт для друку містить загальні показники, дані по групах, плату батьків і пільги, виконання норм за місяць, рух продуктів і підписи. Файл завантажується у форматі Word (.doc) — відкрийте його у Word і друкуйте. Назва закладу та підписанти — у вкладці «Заклад».</p>`;
+  <p class="hint">Звіт для друку містить загальні показники, дані по групах, плату батьків і пільги, виконання норм за місяць, рух продуктів і підписи. Можна вибрати формат: Word (.doc), PDF або одразу друк. Назва закладу та підписанти — у вкладці «Заклад».</p>`;
 }
 
 /* ---- страви ---- */
@@ -793,21 +802,22 @@ table.kv td.v{text-align:right;font-weight:bold;width:150pt}
 small{font-size:9pt}`;
 const docWrap=(title,body,land)=>'﻿'+`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${esc(title)}</title>
 <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
-<style>@page Section1{size:${land?'841.9pt 595.3pt;mso-page-orientation:landscape':'595.3pt 841.9pt'};margin:1.5cm 1.5cm 1.5cm 1.5cm}div.Section1{page:Section1}
+<style>@page{size:A4 ${land?'landscape':'portrait'};margin:12mm}@page Section1{size:${land?'841.9pt 595.3pt;mso-page-orientation:landscape':'595.3pt 841.9pt'};margin:1.5cm 1.5cm 1.5cm 1.5cm}div.Section1{page:Section1}
 ${REP_CSS}</style></head><body><div class="Section1">${wordify(body)}</div></body></html>`;
 /* рамки й вирівнювання — атрибутами, щоб однаково виглядало у Word, LibreOffice, Google Документах */
 function wordify(h){const B='border:1px solid #000;';
   h=h.replace(/<table class="(nb|kv)">([\s\S]*?)<\/table>/g,(m,c,inner)=>`<table width="100%" border="0" cellspacing="0" cellpadding="2" style="border:none;width:100%">`+
-    inner.replace(/<td class="v">/g,'<td align="right" style="border:none;font-weight:bold">').replace(/<td(?![^>]*align)( [^>]*)?>/g,(x,at)=>`<td align="left" valign="top"${at||''}>`).replace(/style="([^"]*)"(?=[^>]*>)/g,(x,st)=>`style="border:none;${st}"`)+'</table>');
+    inner.replace(/<td class="v">/g,'<td align="right" style="border:none;text-align:right;font-weight:bold">')
+      .replace(/<td( [^>]*)?>/g,(x,at)=>{at=at||'';if(/align=/.test(at))return x;const st=(at.match(/style="([^"]*)"/)||[])[1]||'';return `<td align="left" valign="top" ${at.replace(/style="[^"]*"/,'')} style="border:none;text-align:left;${st}">`})+'</table>');
   h=h.replace(/<table( class="mv")?>/g,(m,c)=>`<table width="100%" border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;width:100%;${c?'font-size:9pt;':''}">`);
-  h=h.replace(/<th( [^>]*)?>/g,(m,at)=>`<th align="center" valign="middle" style="${B}background:#e8e8e8"${(at||'').replace(/style="[^"]*"/,'')}>`);
-  h=h.replace(/<td class="l"( [^>]*)?>/g,(m,at)=>`<td align="left" valign="top" style="${B}"${at||''}>`);
-  h=h.replace(/<td>/g,`<td align="center" valign="top" style="${B}">`);
-  h=h.replace(/<td colspan="(\d+)">/g,`<td colspan="$1" align="center" style="${B}">`);
+  h=h.replace(/<th( [^>]*)?>/g,(m,at)=>`<th align="center" valign="middle" style="${B}text-align:center;background:#e8e8e8"${(at||'').replace(/style="[^"]*"/,'')}>`);
+  h=h.replace(/<td class="l"( [^>]*)?>/g,(m,at)=>`<td align="left" valign="top" style="${B}text-align:left"${at||''}>`);
+  h=h.replace(/<td>/g,`<td align="center" valign="top" style="${B}text-align:center">`);
+  h=h.replace(/<td colspan="(\d+)">/g,`<td colspan="$1" align="center" style="${B}text-align:center">`);
   h=h.replace(/<tr class="t">/g,'<tr style="font-weight:bold;background:#f2f2f2">');
   return h}
 const ln=v=>v?esc(v):LINE;
-const apHead=y=>`<table class="nb"><tr><td style="width:55%">${esc(S.meta.inst||'')}</td><td style="width:45%;line-height:1.6" align="left">ЗАТВЕРДЖУЮ<br>Директор ${LINE} ${esc(S.meta.head||'')}<br>«___» ______________ ${y} р.</td></tr></table>`;
+const apHead=y=>`<table class="nb"><tr><td style="width:55%">${esc(S.meta.inst||'')}</td><td style="width:45%;line-height:1.6">ЗАТВЕРДЖУЮ<br>Директор ${LINE} ${esc(S.meta.head||'')}<br>«___» ______________ ${y} р.</td></tr></table>`;
 function signs(y,keys=[['resp','Відповідальний за харчування'],['nurse','Медична сестра'],['accountant','Бухгалтер']]){return `<p>&nbsp;</p><table class="nb">${keys.map(([k,l])=>`<tr><td style="padding:6pt 0">${l} ${LINE} ${ln(S.meta[k])}</td></tr>`).join('')}<tr><td style="padding:6pt 0">Дата складання «___» ______________ ${y} р.&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;М. П.</td></tr></table>`}
 function reportDoc(){
   const [y,mm]=S.cur.split('-'),mon=MONTHS_GEN[+mm-1],t=monthTotals(),kdAll=t.kd[0]+t.kd[1],e=esc;let n=0;const sec=x=>`<h3>${++n}. ${x}</h3>`;
@@ -859,6 +869,37 @@ function normDoc(){const W=weeksOfMonth(),w=W[S.wk],[y]=S.cur.split('-'),R=normR
   <p style="font-size:12px">Норми — Додаток 1 до Норм харчування у закладах освіти (постанова КМУ від 24.03.2021 № 305). Допустиме відхилення маси нетто порції 5–10%; норми солі, цукру, какао, чаю виконані при ≥50%.</p>`+signs(y,[['nurse','Медична сестра'],['resp','Відповідальний за харчування']]);
   return docWrap('Аналіз виконання норм',h,true)}
 const DOC='application/msword';
+/* вибір формату документа: Word, PDF або друк */
+let PEND=null;
+function askFmt(name,html){PEND={name,html,land:html.includes('mso-page-orientation:landscape')};const d=document.getElementById('fmtDlg');
+  d.querySelector('.fname').textContent=name;let last='doc';try{last=localStorage.getItem('zdo_fmt')||'doc'}catch(e){}
+  d.querySelectorAll('[data-fmt]').forEach(b=>b.classList.toggle('pri',b.dataset.fmt===last));d.hidden=false;d.querySelector(`[data-fmt="${last}"]`).focus()}
+function docFrame(html,land){const f=document.createElement('iframe');f.setAttribute('aria-hidden','true');
+  f.style.cssText=`position:fixed;left:-12000px;top:0;width:${land?1050:740}px;height:1400px;border:0;background:#fff`;document.body.appendChild(f);
+  const d=f.contentDocument;d.open();d.write(html.replace(/^\ufeff/,''));d.close();return f}
+const H2P_URL='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+function loadInto(win){return new Promise((ok,no)=>{if(win.html2pdf)return ok(win.html2pdf);const d=win.document,sc=d.createElement('script');sc.src=H2P_URL;sc.onload=()=>ok(win.html2pdf);sc.onerror=no;d.head.appendChild(sc)})}
+async function runFmt(fmt){const P=PEND;if(!P)return;document.getElementById('fmtDlg').hidden=true;try{localStorage.setItem('zdo_fmt',fmt)}catch(e){}
+  if(fmt==='doc'){download(P.name+'.doc',P.html,DOC);return}
+  const f=docFrame(P.html,P.land);await new Promise(r=>setTimeout(r,300));
+  if(fmt==='print'){try{f.contentWindow.focus();f.contentWindow.print()}catch(e){toast('Не вдалося відкрити друк. Завантажте PDF або Word')}setTimeout(()=>f.remove(),60000);return}
+  toast('Готую PDF…');
+  try{const w=f.contentWindow,h2p=await loadInto(w),body=w.document.body;body.style.margin='0';body.style.padding='0';body.style.background='#fff';
+    const opt=w.JSON.parse(JSON.stringify({margin:[10,10,10,10],image:{type:'jpeg',quality:0.95},html2canvas:{scale:2,backgroundColor:'#ffffff'},
+      jsPDF:{unit:'mm',format:'a4',orientation:P.land?'landscape':'portrait'},pagebreak:{mode:['css','legacy'],avoid:['tr','h3']}})); /* обʼєкт налаштувань має бути з того ж вікна */
+    const blob=await h2p().set(opt).from(body).outputPdf('blob');
+    download(P.name+'.pdf',blob);toast('PDF збережено')}
+  catch(e){toast('Не вдалося створити PDF. Перевірте інтернет або виберіть «Друк» → «Зберегти як PDF»')}
+  finally{f.remove()}}
+(()=>{const d=document.createElement('div');d.id='fmtDlg';d.hidden=true;d.setAttribute('role','dialog');d.setAttribute('aria-modal','true');d.setAttribute('aria-labelledby','fmtTitle');
+  d.innerHTML=`<div class="fbox"><h2 id="fmtTitle">У якому форматі?</h2><p class="hint fname"></p>
+    <div class="fopts"><button class="btn" data-fmt="doc"><b>Word</b><small>.doc — можна редагувати</small></button>
+    <button class="btn" data-fmt="pdf"><b>PDF</b><small>готовий до друку і пересилання</small></button>
+    <button class="btn" data-fmt="print"><b>Друк</b><small>одразу на принтер</small></button></div>
+    <button class="btn ghost" data-fmt="close">Скасувати</button></div>`;
+  document.body.appendChild(d);
+  d.addEventListener('click',e=>{const b=e.target.closest('[data-fmt]');if(b){if(b.dataset.fmt==='close'){d.hidden=true;PEND=null}else runFmt(b.dataset.fmt)}else if(e.target===d){d.hidden=true;PEND=null}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!d.hidden){d.hidden=true;PEND=null}});})();
 function download(name,content,type='text/html;charset=utf-8'){const b=content instanceof Blob?content:new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 function exportXlsx(){
   if(!window.XLSX){toast('Excel ще завантажується, спробуйте за мить');return}
@@ -926,13 +967,13 @@ $main.addEventListener('click',e=>{
     case 'rmBuy':{const st=month().stock[b.dataset.p];st.buys=st.buys.filter(x=>x.id!==b.dataset.b);go(mk);break}
     case 'delP':{const p=b.dataset.p;delete M.products[p];M.dishes.forEach(d=>d.items=d.items.filter(i=>i.p!==p));delete month().stock[p];S.confirm=null;go('meta',mk);break}
     case 'xlsx':exportXlsx();break;
-    case 'repFile':download(`Звіт харчування ${MONTHS_GEN[+S.cur.split('-')[1]-1]} ${S.cur.split('-')[0]}.doc`,reportDoc(),DOC);break;
+    case 'repFile':askFmt(`Звіт харчування ${MONTHS_GEN[+S.cur.split('-')[1]-1]} ${S.cur.split('-')[0]}`,reportDoc());break;
     case 'wk':S.wk=+b.dataset.i;render();break;
-    case 'normFile':download('Аналіз норм.doc',normDoc(),DOC);break;
+    case 'normFile':askFmt('Аналіз норм',normDoc());break;
     case 'normReset':M.norms={};go('meta');toast('Повернуто значення постанови');break;
-    case 'vymFile':{const d=dayOf(b.dataset.day);download(`Меню-вимога ${dmy(d.date)}.doc`,vymDoc(d),DOC);break}
-    case 'weekFile':download('Меню на тиждень.doc',weekDoc(),DOC);break;
-    case 'brFile':download(`Журнал бракеражу ${MONTHS_GEN[+S.cur.split('-')[1]-1]}.doc`,brakDoc(),DOC);break;
+    case 'vymFile':{const d=dayOf(b.dataset.day);askFmt(`Меню-вимога ${dmy(d.date)}`,vymDoc(d));break}
+    case 'weekFile':askFmt('Меню на тиждень',weekDoc());break;
+    case 'brFile':askFmt(`Журнал бракеражу ${MONTHS_GEN[+S.cur.split('-')[1]-1]}`,brakDoc());break;
     case 'brFill':{const m=month(),d=dayOf(S.bday),B=m.brak[d.id]||(m.brak[d.id]={});d.dishes.forEach((x,ix)=>{const v=B[ix]||(B[ix]={});v.t=v.t||MTIME[x.m];v.r=v.r||'ok';v.p=v.p??1});go(mk);break}
     case 'openDish':S.openDish=S.openDish===b.dataset.d?null:b.dataset.d;render();break;
     case 'dupDish':{const d=dish(b.dataset.d),c=JSON.parse(JSON.stringify(d));c.id=uid();c.name=d.name+' (копія)';M.dishes.splice(M.dishes.indexOf(d)+1,0,c);S.openDish=c.id;go('meta');break}
