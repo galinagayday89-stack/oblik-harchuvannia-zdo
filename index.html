@@ -177,6 +177,7 @@ table.buys input[type=number]{width:90px}
 .chip.empty{background:var(--warn-soft);color:var(--warn)}
 .li.grp{border:1px solid var(--line);border-radius:8px;padding:8px 10px;gap:8px 12px}
 .li.grp>input:first-child{font-weight:600}
+.mb th.g,.mb td.g{border-left:1px solid var(--line)}
 .credit{font-family:var(--f-display);font-weight:500;font-size:14px;color:var(--ink);margin-bottom:4px}
 footer{margin-top:30px;font-size:12px;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){.toast{transition:none}}
@@ -208,6 +209,8 @@ footer{margin-top:30px;font-size:12px;color:var(--muted)}
 <div class="toast" id="toast"></div>
 <script>
 /* ================= довідники ================= */
+/* вікові категорії для плати й обліку; n — група норм за постановою 305 (0 — 1–4 роки, 1 — 4–6(7)) */
+const AC=[{c:'1–3 роки',a:'Ясла 1–3',n:0},{c:'3–4 роки',a:'Ясла 3–4',n:0},{c:'4–6(7) років',a:'Садок 4–6(7)',n:1}];
 const AG=[{c:'Ясла (1–4 роки)',a:'Ясла',s:'1–4'},{c:'Садок (4–6(7) років)',a:'Садок',s:'4–6(7)'}];
 const MEALS={b:'Сніданок',b2:'Другий сніданок',l:'Обід',s:'Підвечірок',d:'Вечеря'};
 const MORDER=['b','b2','l','s','d'];
@@ -284,7 +287,7 @@ function exampleData(){
     'картопля':P('г',18,'potato'),'морква':P('г',20,'veg'),'цибуля ріпчаста':P('г',22,'veg'),'капуста білоголова':P('г',16,'veg'),'олія соняшникова':P('г',78,'oil'),'філе куряче':P('г',210,'poultry'),'батон':P('г',50,''),
     'яйце':P('шт',5.2,'egg'),'крупа гречана':P('г',60,''),'буряк столовий':P('г',18,'veg'),'сухофрукти':P('г',160,'dried'),'цукор':P('г',34,'sugar'),'сир кисломолочний':P('г',180,'milk'),'борошно пшеничне':P('г',24,''),
     'сметана':P('г',160,'milk'),'яблуко':P('г',30,'fruit'),'кефір':P('г',45,'milk')};
-  const groups=[['Сонечко',0,18],['Бджілка',1,24],['Зірочка',1,25]].map(([name,age,total],i)=>({id:uid(),name,age,total,mixed:i===2}));
+  const groups=[['Сонечко',0,18],['Бджілка',2,24],['Зірочка',2,25]].map(([name,ac,total],i)=>({id:uid(),name,ac,age:AC[ac].n,total,mixed:i===2}));
   const cats=DEF_CATS.map(([n,d])=>({id:uid(),n,d}));
   const kids=['Дитина 1','Дитина 2','Дитина 3','Дитина 4','Дитина 5','Дитина 6'].map((n,i)=>({id:uid(),name:n+' (приклад)',grp:groups[0].id,cat:i===1?cats[0].id:i===4?cats[5].id:''}));
   const k=curKey,[y,m]=k.split('-');
@@ -298,7 +301,7 @@ function exampleData(){
     'олія соняшникова':B(2,78),'філе куряче':B(5,210),'батон':B(1,50),'яйце':B(30,5.2),'крупа гречана':B(3,60),'буряк столовий':B(5,18),'сухофрукти':B(2,160),'цукор':B(2,34),'сир кисломолочний':B(6,180),'борошно пшеничне':B(1,24),'сметана':B(1.5,160),'яблуко':B(5,30),'кефір':B(10,45)};
   const brak={[days[0].id]:{}};
   days[0].dishes.forEach((e,i)=>brak[days[0].id][i]={t:MTIME[e.m],r:'ok',o:'',p:1});
-  return {meta:{v:1,products,dishes,months:[k],groups,kids,cats,meals:['b','l','d'],fee:{mode:'pct',pct:60,fix:[0,0]},norms:{},
+  return {meta:{v:1,products,dishes,months:[k],groups,kids,cats,meals:['b','l','d'],fee:{mode:'pct',pct:60,fix:[0,0,0]},norms:{},
     inst:'',head:'',resp:'',nurse:'',accountant:'',comm:'',legend:'Г — глютен; М — молоко та молочні продукти; Я — яйця (приклад, звірте з додатком 13 до Норм)',costMethod:'fifo'},
     months:{[k]:{days,stock,tab,brak}}};
 }
@@ -333,7 +336,9 @@ function loadSaved(){
 function applyData(meta,months){
   S.meta=meta;S.months=months||{};S.example=false;
   const M=S.meta;M.months=M.months||[];M.products=M.products||{};M.dishes=M.dishes||[];M.groups=M.groups||[];M.kids=M.kids||[];M.cats=M.cats||DEF_CATS.map(([n,d])=>({id:uid(),n,d}));
-  M.meals=M.meals||['b','l','d'];M.fee=M.fee||{mode:'pct',pct:60,fix:[0,0]};M.norms=M.norms||{};
+  M.meals=M.meals||['b','l','d'];M.fee=M.fee||{mode:'pct',pct:60,fix:[0,0,0]};
+  if(!Array.isArray(M.fee.fix))M.fee.fix=[0,0,0];if(M.fee.fix.length<3)M.fee.fix=[M.fee.fix[0]||0,M.fee.fix[0]||0,M.fee.fix[1]||0];
+  M.groups.forEach(g=>{g.ac=acG(g);g.age=AC[g.ac].n});M.kids.forEach(x=>{const g=M.groups.find(y=>y.id===x.grp);if(g&&g.mixed){x.ac=acK(x,g);x.age=AC[x.ac].n}});M.norms=M.norms||{};
   M.dishes.forEach(d=>{d.out=d.out||[0,0];d.kcal=d.kcal||['',''];d.items.forEach(it=>{it.p=normName(it.p);it.n=it.n||['','']})});
   Object.values(S.months).forEach(m=>{m.days=m.days||[];m.stock=m.stock||{};m.tab=m.tab||{};m.brak=m.brak||{}});
 }
@@ -358,8 +363,10 @@ const sortDays=m=>[...m.days].sort((a,b)=>a.date.localeCompare(b.date));
 /* кількість дітей групи за день: з табеля, якщо його заповнено, інакше — введене в журналі */
 function fromTab(day,g,k=S.cur){const t=month(k).tab[day.id];return !!(t&&t['g:'+g.id]&&kidsOf(g.id).length)}
 /* вік дитини: у різновіковій групі — свій, інакше — вік групи */
-const ageOf=(kid,g)=>g&&g.mixed&&(kid.age===0||kid.age===1)?kid.age:(g?g.age:1);
-const gLabel=g=>g.mixed?'різновікова':AG[g.age].a;
+const acG=g=>g?(g.ac===0||g.ac===1||g.ac===2?g.ac:(g.age===0?0:2)):2;
+const acK=(kid,g)=>{if(g&&g.mixed){if(kid.ac===0||kid.ac===1||kid.ac===2)return kid.ac;if(kid.age===0||kid.age===1)return kid.age===0?0:2}return acG(g)};
+const ageOf=(kid,g)=>AC[acK(kid,g)].n;
+const gLabel=g=>g.mixed?'різновікова':AC[acG(g)].a;
 /* кількість дітей групи за день по вікових категоріях [ясла, садок] */
 function grpAges(day,g,k=S.cur){const r=[0,0];
   if(fromTab(day,g,k)){const t=month(k).tab[day.id];kidsOf(g.id).forEach(x=>{if(t[x.id])r[ageOf(x,g)]++});return r}
@@ -411,6 +418,18 @@ function dayCalc(day,k=S.cur){
     r.cost.forEach((v,i)=>perChild[i]+=v);cost+=r.sum});
   return {rows:Object.values(rows).sort((a,b)=>a.p.localeCompare(b.p,'uk')),perChild,cost,kids};
 }
+/* розхід за прийомами їжі: продукт → для кожного прийому норма на 1 дитину [ясла, садок] і всього */
+function mealBreak(day,k=S.cur){const kids=K(day,k),ms=MORDER.filter(m=>day.dishes.some(e=>e.m===m)),P={};
+  day.dishes.forEach(e=>{const d=dishById(e.id);if(!d)return;d.items.forEach(it=>{if(!it.p)return;const r=P[it.p]||(P[it.p]={p:it.p,m:{}});const x=r.m[e.m]||(r.m[e.m]={g:[0,0],q:0,dishes:[]});
+    it.g.forEach((v,i)=>x.g[i]+=num(v));if(!x.dishes.includes(d.name))x.dishes.push(d.name)})});
+  Object.values(P).forEach(r=>{r.q=0;r.cnt=0;ms.forEach(m=>{const x=r.m[m];if(!x)return;r.cnt++;x.q=toStock(r.p,x.g[0]*num(kids[0])+x.g[1]*num(kids[1]));r.q+=x.q})});
+  return {ms,kids,rows:Object.values(P).sort((a,b)=>a.p.localeCompare(b.p,'uk'))}}
+function mealTable(day){const B=mealBreak(day),c=dayCalc(day);
+  return `<div class="tw"><table class="mb"><thead><tr><th rowspan="2">Продукт</th>${B.ms.map(m=>`<th colspan="3" class="g">${MEALS[m]}</th>`).join('')}<th rowspan="2" class="g">Разом за день</th><th rowspan="2">Сума, грн</th></tr>
+    <tr>${B.ms.map(()=>'<th class="g">ясла, г</th><th>садок, г</th><th>всього</th>').join('')}</tr></thead><tbody>
+    ${B.rows.map(r=>{const pr=priceAt(r.p,S.cur,day.id);return `<tr><td class="name">${esc(r.p)}${r.cnt>1?` <span class="badge" style="color:var(--accent);background:var(--accent-soft)">×${r.cnt}</span>`:''}</td>${B.ms.map(m=>{const x=r.m[m];return x?`<td class="g" title="${esc(x.dishes.join(', '))}">${fmtq(x.g[0])}</td><td>${fmtq(x.g[1])}</td><td>${fmtq(x.q)} ${su(r.p)}</td>`:'<td class="g">—</td><td>—</td><td>—</td>'}).join('')}<td class="calc g">${fmtq(r.q)} ${su(r.p)}</td><td class="calc">${fmt(r.q*pr)}</td></tr>`}).join('')}
+    <tr class="tot"><td>Разом</td>${B.ms.map(()=>'<td class="g"></td><td></td><td></td>').join('')}<td class="g"></td><td>${fmt(c.cost)}</td></tr></tbody></table></div>`}
+
 function usedMap(k=S.cur){const u={};month(k).days.forEach(d=>dayCalc(d,k).rows.forEach(r=>u[r.p]=(u[r.p]||0)+toStock(r.p,r.total)));return u}
 function monthTotals(k=S.cur){const m=month(k);let cost=0;const kd=[0,0],gc=[0,0];
   m.days.forEach(d=>{const c=dayCalc(d,k);cost+=c.cost;c.kids.forEach((n,i)=>{kd[i]+=num(n);gc[i]+=c.perChild[i]*num(n)})});
@@ -420,10 +439,11 @@ function allProducts(){const set=new Set(Object.keys(S.meta.products));S.meta.di
 /* ---- плата батьків ---- */
 const catOf=id=>S.meta.cats.find(c=>c.id===id);
 const hasGFee=g=>g&&g.fee!==undefined&&g.fee!==null&&String(g.fee).trim()!=='';
-function feePerDay(age,costPerChild,g){if(hasGFee(g))return num(g.fee);const f=S.meta.fee;return f.mode==='fix'?num(f.fix[age]):costPerChild*num(f.pct)/100}
-function kidFee(kid,k=S.cur){const g=GR().find(x=>x.id===kid.grp);if(!g)return {days:0,full:0,ben:0,pay:0};const m=month(k);let days=0,full=0;
-  m.days.forEach(d=>{const t=m.tab[d.id];if(t&&t[kid.id]){days++;const ag=ageOf(kid,g);full+=feePerDay(ag,dayCalc(d,k).perChild[ag],g)}});
-  const disc=num(catOf(kid.cat)?.d);const ben=full*disc/100;return {days,full,ben,pay:full-ben}}
+function feePerDay(ac,costPerChild,g){if(hasGFee(g))return num(g.fee);const f=S.meta.fee;return f.mode==='fix'?num(f.fix[ac]):costPerChild*num(f.pct)/100}
+function kidFee(kid,k=S.cur){const g=GR().find(x=>x.id===kid.grp);if(!g)return {days:0,full:0,ben:0,pay:0,ac:2};const m=month(k),ac=acK(kid,g),ag=AC[ac].n;let days=0,full=0;
+  m.days.forEach(d=>{const t=m.tab[d.id];if(t&&t[kid.id]){days++;full+=feePerDay(ac,dayCalc(d,k).perChild[ag],g)}});
+  const disc=num(catOf(kid.cat)?.d);const ben=full*disc/100;return {days,full,ben,pay:full-ben,ac}}
+function acStats(k=S.cur){const r=AC.map(()=>({kids:0,days:0,full:0,ben:0,pay:0}));S.meta.kids.forEach(x=>{const f=kidFee(x,k);if(!f.days)return;const o=r[f.ac];o.kids++;o.days+=f.days;o.full+=f.full;o.ben+=f.ben;o.pay+=f.pay});return r}
 
 /* ---- норми 305 ---- */
 function NG(){const o=S.meta.norms||{};return NDEF.map(n=>{const x=o[n.k];return x?{...n,p:x.p??n.p,m:x.m?[num(x.m[0]),num(x.m[1])]:n.m}:n})}
@@ -472,18 +492,20 @@ function rJournal(){
       return `<div class="meal"><div class="mlab">${MEALS[ml]}</div><div class="chips">${chips}<select data-f="addDish" data-day="${day.id}" data-m="${ml}" aria-label="Додати страву на ${MEALS[ml].toLowerCase()}"><option value="">+ Страва</option>${opts(ml)}</select></div></div>`}).join('');
     const cin=(key,lab)=>`<label>${lab}<input type="number" min="0" step="1" value="${num((day.cnt||{})[key])||''}" placeholder="0" data-f="cnt" data-g="${key}" data-day="${day.id}"></label>`;
     const kidsIn=GR().length?GR().map(g=>{if(fromTab(day,g)){const a=grpAges(day,g);return `<label>${esc(g.name)} · ${gLabel(g)}<span class="kfix">${g.mixed?`${a[0]} + ${a[1]}`:grpCount(day,g)} <small>з табеля</small></span></label>`}
-        return g.mixed?cin(g.id+':0',`${esc(g.name)} · ясла`)+cin(g.id+':1',`${esc(g.name)} · садок`):cin(g.id,`${esc(g.name)} · ${AG[g.age].a}`)}).join('')
+        return g.mixed?cin(g.id+':0',`${esc(g.name)} · ясла`)+cin(g.id+':1',`${esc(g.name)} · садок`):cin(g.id,`${esc(g.name)} · ${gLabel(g)}`)}).join('')
       :AG.map((a,i)=>`<label>${a.c}<input type="number" min="0" step="1" value="${num(day.kids?.[i])||''}" placeholder="0" data-f="kids" data-i="${i}" data-day="${day.id}"></label>`).join('');
     const rows=c.rows.map(r=>`<tr><td class="name">${esc(r.p)}</td>${r.g.map((g,i)=>`<td>${fmtq(g)}</td><td>${fmt(r.cost[i])}</td>`).join('')}<td class="calc">${fmtq(toStock(r.p,r.total),3)} ${su(r.p)}</td><td class="calc">${fmt(r.sum)}</td></tr>`).join('');
     return `<article class="card">
       <div class="dayhead">
         <div class="row"><input type="date" value="${day.date}" min="${y}-${mm}-01" max="${y}-${mm}-${pad(last)}" data-f="date" data-day="${day.id}" aria-label="Дата"><span class="hint">${new Date(day.date+'T12:00').toLocaleDateString('uk-UA',{weekday:'long'})}</span></div>
-        <div class="row"><span class="daycost">${fmt(c.cost)} грн</span><button class="btn sm" data-act="copyDay" data-day="${day.id}" title="Додати наступний день з тими самими стравами">Копіювати</button>${confirmBtn('day'+day.id,'Видалити день',`data-act="rmDay" data-day="${day.id}"`)}</div>
+        <div class="row"><span class="daycost">${fmt(c.cost)} грн</span><button class="btn sm" data-act="vymFile" data-day="${day.id}" title="Завантажити меню-вимогу на цей день для друку">Меню-вимога</button><button class="btn sm" data-act="copyDay" data-day="${day.id}" title="Додати наступний день з тими самими стравами">Копіювати</button>${confirmBtn('day'+day.id,'Видалити день',`data-act="rmDay" data-day="${day.id}"`)}</div>
       </div>
       <div class="kids">${kidsIn}<label>Разом<span class="kfix">${c.kids[0]} + ${c.kids[1]}</span></label></div>
       <div class="meals">${meals}</div>
       ${dayWarn(day,c)}
       ${c.rows.length?`<div class="pc">Вартість на 1 дитину: ${AG.map((a,i)=>`<span>${a.a}: <b>${fmt(c.perChild[i])} грн</b></span>`).join('')}</div>
+      <details ${S.openMB===day.id?'open':''} data-mb="${day.id}"><summary>Розхід за прийомами їжі</summary>${mealTable(day)}
+        <p class="hint">Продукт, що є в кількох прийомах їжі (позначка ×2, ×3), рахується окремо для кожного: норма на 1 дитину × кількість дітей. Наведіть на число, щоб побачити страви.</p></details>
       <details><summary>Продукти за день (${c.rows.length})</summary><div class="tw"><table>
         <thead><tr><th rowspan="2">Продукт</th>${AG.map(a=>`<th colspan="2" style="text-align:center">${a.a}</th>`).join('')}<th rowspan="2">Видано</th><th rowspan="2">Сума, грн</th></tr>
         <tr>${AG.map(()=>'<th>на 1 дит.</th><th>грн</th>').join('')}</tr></thead>
@@ -514,7 +536,7 @@ function rTabel(){
   if(!gs.length)return `<div class="card empty">Спершу додайте групи садочка у вкладці «Заклад».</div>`;
   if(!gs.find(g=>g.id===S.tg))S.tg=gs[0].id;
   const g=gs.find(x=>x.id===S.tg),m=month(),days=sortDays(m),kids=kidsOf(g.id);
-  const ageSel=k=>g.mixed?`<select data-f="kidAge" data-kid="${k.id}" aria-label="Вікова категорія">${AG.map((a,i)=>`<option value="${i}" ${ageOf(k,g)===i?'selected':''}>${a.a} (${a.s})</option>`).join('')}</select>`:'';
+  const ageSel=k=>g.mixed?`<select data-f="kidAge" data-kid="${k.id}" aria-label="Вікова категорія">${AC.map((a,i)=>`<option value="${i}" ${acK(k,g)===i?'selected':''}>${a.c}</option>`).join('')}</select>`:'';
   const catSel=k=>`<select data-f="kidCat" data-kid="${k.id}" aria-label="Пільга"><option value="">без пільги</option>${S.meta.cats.map(c=>`<option value="${c.id}" ${k.cat===c.id?'selected':''}>${esc(c.n)} (−${fmtq(c.d,0)}%)</option>`).join('')}</select>`;
   let T={days:0,full:0,ben:0,pay:0};
   const rows=kids.map(k=>{const f=kidFee(k);Object.keys(T).forEach(x=>T[x]+=f[x]);const t=x=>m.tab[x.id]||{};
@@ -522,10 +544,10 @@ function rTabel(){
       ${days.map(d=>`<td class="c"><input type="checkbox" ${t(d)[k.id]?'checked':''} data-f="tick" data-day="${d.id}" data-kid="${k.id}" aria-label="${esc(k.name)}, ${dmy(d.date)}"></td>`).join('')}
       <td>${f.days}</td><td>${fmt(f.full)}</td><td>${f.ben?fmt(f.ben):'—'}</td><td class="calc">${fmt(f.pay)}</td></tr>`}).join('');
   const foot=days.map(d=>{if(!fromTab(d,g))return '<td class="c"><span class="hint">—</span></td>';const a=grpAges(d,g);return `<td class="c">${g.mixed?`${a[0]}+${a[1]}`:a[0]+a[1]}</td>`}).join('');
-  const fee=S.meta.fee,feeTxt=hasGFee(g)?`${fmt(num(g.fee))} грн за день (окрема плата цієї групи)`:fee.mode==='fix'?(g.mixed?`${fmt(fee.fix[0])} / ${fmt(fee.fix[1])} грн за день (ясла / садок)`:`${fmt(fee.fix[g.age])} грн за день`):`${fmtq(fee.pct,0)}% від вартості харчування за день`;
+  const fee=S.meta.fee,feeTxt=hasGFee(g)?`${fmt(num(g.fee))} грн за день (окрема плата цієї групи)`:fee.mode==='fix'?(g.mixed?`${AC.map((a,i)=>`${a.c} — ${fmt(fee.fix[i])}`).join(', ')} грн за день`:`${fmt(fee.fix[acG(g)])} грн за день`):`${fmtq(fee.pct,0)}% від вартості харчування за день`;
   return `<div class="row between">${monthNav()}</div>
     <div class="gsel" role="group" aria-label="Група">${gs.map(x=>`<button data-act="tg" data-g="${x.id}" aria-pressed="${x.id===g.id}">${esc(x.name)}<small>${gLabel(x)}</small></button>`).join('')}</div>
-    ${g.mixed?'<p class="hint"><b>Різновікова група.</b> Біля кожної дитини виберіть вікову категорію — норми, вартість і плата рахуються окремо для ясельних і садкових дітей.</p>':''}
+    ${g.mixed?'<p class="hint"><b>Різновікова група.</b> Біля кожної дитини виберіть вікову категорію (1–3, 3–4 або 4–6(7) років) — плата рахується за категорією, а норми продуктів — за постановою 305 (1–4 і 4–6(7) років).</p>':''}
     <p class="hint">Відмітьте дітей, які харчувалися. Щойно в день є відмітки, кількість дітей групи в журналі береться з табеля. Плата батьків: ${feeTxt} (змінюється у вкладці «Заклад»), мінус пільга.</p>
     ${days.length?'':`<div class="infobox"><p>У ${MONTHS_LOC[+S.cur.split('-')[1]-1]} ще немає днів у журналі. Стовпці табеля — це дні харчування з журналу.</p><button class="btn pri sm" data-act="goJournal">Перейти до журналу</button></div>`}
     <div class="tw"><table class="tab">
@@ -533,7 +555,7 @@ function rTabel(){
       <tbody>${rows||`<tr><td colspan="${days.length+5}" class="empty">У групі «${esc(g.name)}» ще немає дітей. Додайте нижче.</td></tr>`}</tbody>
       <tfoot><tr class="tot"><td>Харчувалося</td>${foot}<td>${T.days}</td><td>${fmt(T.full)}</td><td>${fmt(T.ben)}</td><td>${fmt(T.pay)}</td></tr></tfoot></table></div>
     <form class="row" id="addKidForm" style="margin-top:12px"><input id="newKid" placeholder="Прізвище та імʼя дитини" autocomplete="off" style="flex:1;min-width:200px;max-width:340px" aria-label="ПІБ дитини">
-      ${g.mixed?`<select id="newKidAge" aria-label="Вікова категорія">${AG.map((a,i)=>`<option value="${i}">${a.a} (${a.s})</option>`).join('')}</select>`:''}
+      ${g.mixed?`<select id="newKidAge" aria-label="Вікова категорія">${AC.map((a,i)=>`<option value="${i}" ${acG(g)===i?'selected':''}>${a.c}</option>`).join('')}</select>`:''}
       <select id="newKidCat" aria-label="Пільга"><option value="">без пільги</option>${S.meta.cats.map(c=>`<option value="${c.id}">${esc(c.n)}</option>`).join('')}</select>
       <button class="btn pri" type="submit">+ Додати дитину</button></form>
     <p class="hint">Порада: щоб внести список швидко, вставте в поле кілька імен через кому.</p>`;
@@ -673,6 +695,7 @@ function rSummary(){
       ${gsx.length?`<h3 style="margin-top:14px">По групах садочка</h3><div class="tw"><table><thead><tr><th>Група</th><th>За списком</th><th>Дітоднів</th><th>Сума, грн</th></tr></thead><tbody>${gsx.map(x=>`<tr><td>${esc(x.g.name)} <span class="hint">${gLabel(x.g)}</span></td><td>${x.g.total||'—'}</td><td>${x.kd}</td><td>${fmt(x.sum)}</td></tr>`).join('')}</tbody></table></div>`:''}</div>
     <div class="card"><h2>Плата батьків і пільги</h2>${tabUsed?`<div class="tw"><table><tbody>
       <tr><td>Нараховано за табелем (без пільг)</td><td>${fmt(F.full)}</td></tr><tr><td>Пільги</td><td>${fmt(F.ben)}</td></tr><tr class="tot"><td>До сплати батьками</td><td>${fmt(F.pay)}</td></tr></tbody></table></div>
+      <h3 style="margin-top:14px">За віковими категоріями</h3><div class="tw"><table><thead><tr><th>Вік</th><th>Дітей</th><th>Дітоднів</th><th>Нараховано</th><th>Пільги</th><th>До сплати</th></tr></thead><tbody>${acStats().map((o,i)=>`<tr><td>${AC[i].c}</td><td>${o.kids}</td><td>${o.days}</td><td>${fmt(o.full)}</td><td>${fmt(o.ben)}</td><td>${fmt(o.pay)}</td></tr>`).join('')}</tbody></table></div>
       ${Object.keys(F.cat).length?`<h3 style="margin-top:14px">Пільгові категорії</h3><div class="tw"><table><thead><tr><th>Категорія</th><th>Дітей</th><th>Днів</th><th>Сума пільги</th></tr></thead><tbody>${Object.entries(F.cat).map(([c,v])=>`<tr><td class="l">${esc(c)}</td><td>${v.kids}</td><td>${v.days}</td><td>${fmt(v.sum)}</td></tr>`).join('')}</tbody></table></div>`:''}`
       :'<p class="hint">Плата батьків рахується за табелем. Заповніть табель відвідування — і тут зʼявиться нарахування по дітях та сума пільг.</p>'}</div>
   </div>
@@ -728,18 +751,19 @@ function rSettings(){
       <div class="lst"><label class="chk"><input type="radio" name="feeMode" data-f="feeMode" value="pct" ${f.mode!=='fix'?'checked':''}> Відсоток від вартості харчування за день</label>
         ${f.mode!=='fix'?`<label class="lab">Відсоток, %<input type="number" min="0" max="100" step="any" value="${f.pct}" data-f="feePct"></label>`:''}
         <label class="chk"><input type="radio" name="feeMode" data-f="feeMode" value="fix" ${f.mode==='fix'?'checked':''}> Фіксована сума за день</label>
-        ${f.mode==='fix'?`<div class="row">${AG.map((a,i)=>`<label class="lab">${a.a}, грн<input type="number" min="0" step="any" value="${f.fix[i]||''}" data-f="feeFix" data-i="${i}"></label>`).join('')}</div>`:''}</div>
+        ${f.mode==='fix'?`<div class="row">${AC.map((a,i)=>`<label class="lab">${a.c}, грн<input type="number" min="0" step="any" value="${f.fix[i]||''}" data-f="feeFix" data-i="${i}" style="width:100px"></label>`).join('')}</div>`:''}</div>
       <p class="hint">Якщо в групах різна плата (наприклад, три вартості), вкажіть її в картці «Групи садочка» навпроти кожної групи — вона діятиме замість загальної.</p>
       <p class="hint">Розмір плати і пільги встановлює засновник (рішення сільської, селищної, міської ради).</p></div>
     <div class="card"><h2>Групи садочка</h2><div class="lst">${GR().map(g=>`<div class="li grp"><input value="${esc(g.name)}" data-f="gname" data-g="${g.id}" aria-label="Назва групи">
-        <select data-f="gage" data-g="${g.id}" aria-label="Вік" ${g.mixed?'title="Для різновікової групи — вік нових дітей за замовчуванням"':''}>${AG.map((a,i)=>`<option value="${i}" ${g.age===i?'selected':''}>${g.mixed?'за замовч.: ':''}${a.c}</option>`).join('')}</select>
+        <select data-f="gage" data-g="${g.id}" aria-label="Вік" ${g.mixed?'title="Для різновікової групи — вік нових дітей за замовчуванням"':''}>${AC.map((a,i)=>`<option value="${i}" ${acG(g)===i?'selected':''}>${g.mixed?'за замовч.: ':''}${a.c}</option>`).join('')}</select>
         <label class="chk"><input type="checkbox" data-f="gmixed" data-g="${g.id}" ${g.mixed?'checked':''}> різновікова</label>
         <label class="lab" style="flex-direction:row;align-items:center;gap:4px">дітей<input type="number" min="0" value="${g.total||''}" placeholder="—" data-f="gtotal" data-g="${g.id}" aria-label="Дітей за списком" style="width:64px"></label>
         <label class="lab" style="flex-direction:row;align-items:center;gap:4px">плата<input type="number" min="0" step="any" value="${hasGFee(g)?g.fee:''}" placeholder="загальна" data-f="gfee" data-g="${g.id}" aria-label="Плата батьків за день для групи ${esc(g.name)}, грн" style="width:90px">грн/день</label>
         ${confirmBtn('grp'+g.id,'Видалити',`data-act="rmGroup" data-g="${g.id}"`)}</div>`).join('')||'<p class="hint">Ще немає груп.</p>'}</div>
       <p class="hint"><b>Плата</b> — окрема сума за день для групи (наприклад, коли у закладі три різні вартості). Порожньо — діє загальна плата з картки «Плата батьків».</p>
-      <p class="hint">Різновікова група — коли разом діти ясельного і садкового віку. Вік кожної дитини вказується в табелі, а без табеля в журналі вводиться окремо кількість ясельних і садкових дітей.</p>
-      <form class="row" id="addGroupForm" style="margin-top:10px"><input id="newGroup" placeholder="Назва групи, напр. Ромашка" autocomplete="off" aria-label="Назва групи"><select id="newGroupAge" aria-label="Вік">${AG.map((a,i)=>`<option value="${i}">${a.a}</option>`).join('')}<option value="mix">Різновікова</option></select><button class="btn pri sm" type="submit">+ Група</button></form></div>
+      <p class="hint"><b>Вікові категорії:</b> 1–3, 3–4 і 4–6(7) років. Плата рахується окремо для кожної категорії. Норми продуктів — за постановою 305: для 1–3 і 3–4 років однакові (група «1–4 роки»).</p>
+      <p class="hint">Різновікова група — коли разом діти різного віку. Вік кожної дитини вказується в табелі, а без табеля в журналі вводиться окремо кількість ясельних і садкових дітей.</p>
+      <form class="row" id="addGroupForm" style="margin-top:10px"><input id="newGroup" placeholder="Назва групи, напр. Ромашка" autocomplete="off" aria-label="Назва групи"><select id="newGroupAge" aria-label="Вік">${AC.map((a,i)=>`<option value="${i}">${a.c}</option>`).join('')}<option value="mix">Різновікова</option></select><button class="btn pri sm" type="submit">+ Група</button></form></div>
     <div class="card"><h2>Пільгові категорії</h2><div class="lst">${M.cats.map(c=>`<div class="li"><input value="${esc(c.n)}" data-f="catN" data-c="${c.id}" aria-label="Категорія"><label class="lab" style="flex-direction:row;align-items:center">знижка<input type="number" min="0" max="100" step="any" value="${c.d}" data-f="catD" data-c="${c.id}" style="width:70px" aria-label="Знижка, %">%</label>
         ${confirmBtn('cat'+c.id,'Видалити',`data-act="rmCat" data-c="${c.id}"`)}</div>`).join('')}</div>
       <form class="row" id="addCatForm" style="margin-top:10px"><input id="newCat" placeholder="Нова категорія" autocomplete="off" aria-label="Нова категорія"><button class="btn pri sm" type="submit">+ Категорія</button></form></div>
@@ -772,8 +796,9 @@ function reportDoc(){
   h+=sec('Загальні показники')+`<table class="kv"><tbody><tr><td>Кількість днів харчування</td><td class="v">${t.days}</td></tr><tr><td>Кількість дітоднів</td><td class="v">${fmtq(kdAll,0)}</td></tr>
     <tr><td>Режим харчування</td><td class="v">${MEAL_ON().map(m=>MEALS[m].toLowerCase()).join(', ')}</td></tr><tr><td>Загальна вартість харчування, грн</td><td class="v">${fmt(t.cost)}</td></tr><tr><td>Середня вартість на 1 дитину за день, грн</td><td class="v">${fmt(t.cost/Math.max(1,kdAll))}</td></tr></tbody></table>`;
   h+=sec('Харчування за віковими групами')+`<table><thead><tr><th>Вікова група</th><th>Дітоднів</th><th>Сума, грн</th><th>На 1 дитину/день, грн</th></tr></thead><tbody>${AG.map((a,i)=>`<tr><td class="l">${a.c}</td><td>${fmtq(t.kd[i],0)}</td><td>${fmt(t.gc[i])}</td><td>${fmt(t.gc[i]/Math.max(1,t.kd[i]))}</td></tr>`).join('')}<tr class="t"><td class="l">Разом</td><td>${fmtq(kdAll,0)}</td><td>${fmt(t.cost)}</td><td>${fmt(t.cost/Math.max(1,kdAll))}</td></tr></tbody></table>`;
-  const gsx=groupStats();if(gsx.length)h+=sec('Відвідування по групах')+`<table><thead><tr><th>Група</th><th>Вік</th><th>За списком</th><th>Дітоднів</th><th>Сума, грн</th></tr></thead><tbody>${gsx.map(x=>`<tr><td class="l">${e(x.g.name)}</td><td>${x.g.mixed?'різновікова':AG[x.g.age].s}</td><td>${x.g.total||''}</td><td>${x.kd}</td><td>${fmt(x.sum)}</td></tr>`).join('')}</tbody></table>`;
+  const gsx=groupStats();if(gsx.length)h+=sec('Відвідування по групах')+`<table><thead><tr><th>Група</th><th>Вік</th><th>За списком</th><th>Дітоднів</th><th>Сума, грн</th></tr></thead><tbody>${gsx.map(x=>`<tr><td class="l">${e(x.g.name)}</td><td>${x.g.mixed?'різновікова':AC[acG(x.g)].c}</td><td>${x.g.total||''}</td><td>${x.kd}</td><td>${fmt(x.sum)}</td></tr>`).join('')}</tbody></table>`;
   const F=feeStats();if(F.full)h+=sec('Батьківська плата та пільги')+`<table class="kv"><tbody><tr><td>Нараховано батьківської плати (без пільг), грн</td><td class="v">${fmt(F.full)}</td></tr><tr><td>Сума пільг, грн</td><td class="v">${fmt(F.ben)}</td></tr><tr><td>До сплати батьками, грн</td><td class="v">${fmt(F.pay)}</td></tr><tr><td>За рахунок коштів засновника, грн</td><td class="v">${fmt(t.cost-F.pay)}</td></tr></tbody></table>
+    <table><thead><tr><th>Вікова категорія</th><th>Дітей</th><th>Дітоднів</th><th>Нараховано, грн</th><th>Пільги, грн</th><th>До сплати, грн</th></tr></thead><tbody>${acStats().map((o,i)=>`<tr><td class="l">${AC[i].c}</td><td>${o.kids}</td><td>${o.days}</td><td>${fmt(o.full)}</td><td>${fmt(o.ben)}</td><td>${fmt(o.pay)}</td></tr>`).join('')}</tbody></table>
     ${Object.keys(F.cat).length?`<table><thead><tr><th>Пільгова категорія</th><th>Дітей</th><th>Днів</th><th>Сума пільги, грн</th></tr></thead><tbody>${Object.entries(F.cat).map(([c,v])=>`<tr><td class="l">${e(c)}</td><td>${v.kids}</td><td>${v.days}</td><td>${fmt(v.sum)}</td></tr>`).join('')}</tbody></table>`:''}`;
   const days=month().days;if(days.length){const R=normRows(days);h+=sec('Виконання норм харчування (Додаток 1 до Норм, постанова КМУ № 305)')+`<table><thead><tr><th>Група продуктів</th>${AG.map(a=>`<th>${a.a}: факт / норма</th><th>%</th>`).join('')}</tr></thead><tbody>${R.map(({n,cells})=>`<tr><td class="l">${e(n.n)}</td>${cells.map(c=>`<td>${n.t==='cnt'?`${fmtq(c.fact,0)} / ${fmtq(c.target,1)} порц.`:`${fmtq(c.fact,1)} / ${fmtq(c.target,1)} ${n.u}`}</td><td>${isFinite(c.pct)?fmtq(c.pct,0)+'%':'—'}</td>`).join('')}</tr>`).join('')}</tbody></table><p style="font-size:12px;margin:2px 0">На 1 дитину за ${days.length} дн. харчування.</p>`}
   const CP=costing().prod,ps=allProducts().filter(p=>{const r=CP[p];return r&&(r.startQ||r.inQ||r.usedQ||r.wrQ||r.endQ)});
@@ -783,6 +808,19 @@ function reportDoc(){
     <tr class="t"><td></td><td class="l">Разом</td><td></td><td></td><td>${fmt(T.startS)}</td><td></td><td>${fmt(T.inS)}</td><td></td><td>${fmt(T.usedS)}</td><td></td><td>${fmt(T.wrS)}</td><td></td><td>${fmt(T.endS)}</td></tr></tbody></table>`}
   return docWrap(`Звіт про харчування ${mon} ${y}`,h+signs(y));
 }
+function vymDoc(day){const [y]=S.cur.split('-'),B=mealBreak(day),c=dayCalc(day),e=esc;let T=0;
+  const kd=GR().length?GR().map(g=>{const a=grpAges(day,g);return `${e(g.name)}: ${a[0]+a[1]}`}).join('; '):'';
+  const menu=B.ms.map(m=>`<tr><td class="l"><b>${MEALS[m]}</b></td><td class="l">${day.dishes.filter(x=>x.m===m).map(x=>{const d=dishById(x.id);return d?`${e(d.name)} — ${fmtq(num(d.out[0]),0)} / ${fmtq(num(d.out[1]),0)} г`:''}).filter(Boolean).join('<br>')}</td></tr>`).join('');
+  const rows=B.rows.map((r,i)=>{const pr=priceAt(r.p,S.cur,day.id),sum=r.q*pr;T+=sum;return `<tr><td>${i+1}</td><td class="l">${e(r.p)}</td><td>${su(r.p)}</td>${B.ms.map(m=>{const x=r.m[m];return x?`<td>${fmtq(x.g[0])}</td><td>${fmtq(x.g[1])}</td><td>${fmtq(x.q)}</td>`:'<td></td><td></td><td></td>'}).join('')}<td><b>${fmtq(r.q)}</b></td><td>${fmt(pr)}</td><td>${fmt(sum)}</td></tr>`}).join('');
+  const h=apHead(y)+`<h1>Меню-вимога</h1><p class="subt">на видачу продуктів харчування на ${dmy(day.date)} (${new Date(day.date+'T12:00').toLocaleDateString('uk-UA',{weekday:'long'})})</p>
+  <table class="kv"><tbody><tr><td>Кількість дітей: ясла (1–4 роки)</td><td class="v">${c.kids[0]}</td></tr><tr><td>Кількість дітей: садок (4–6(7) років)</td><td class="v">${c.kids[1]}</td></tr>${kd?`<tr><td colspan="2" style="font-size:12px">${kd}</td></tr>`:''}</tbody></table>
+  <h3>Меню</h3><table><tbody>${menu}</tbody></table><p style="font-size:12px;margin:2px 0">Вихід страв: ясла / садок.</p>
+  <h3>Продукти</h3><table class="mv"><thead><tr><th rowspan="2">№</th><th rowspan="2">Продукт</th><th rowspan="2">Од.</th>${B.ms.map(m=>`<th colspan="3">${MEALS[m]}</th>`).join('')}<th rowspan="2">Видано разом</th><th rowspan="2">Ціна, грн</th><th rowspan="2">Сума, грн</th></tr>
+  <tr>${B.ms.map(()=>'<th>ясла, г</th><th>садок, г</th><th>всього</th>').join('')}</tr></thead><tbody>${rows}
+  <tr class="t"><td></td><td class="l">Разом</td><td colspan="${B.ms.length*3+2}"></td><td></td><td>${fmt(T)}</td></tr></tbody></table>
+  <p style="font-size:12px">Норми на 1 дитину брутто (г, яйця — шт). «Всього» — кількість до видачі в одиницях складу (кг або шт).</p>
+  <div class="signs"><div class="sg"><div>Директор <span class="line"></span> ${ln(S.meta.head)}</div><div>Медична сестра <span class="line"></span> ${ln(S.meta.nurse)}</div><div>Видав (комірник) <span class="line"></span></div><div>Отримав (кухар) <span class="line"></span></div></div><div></div></div>`;
+  return docWrap(`Меню-вимога ${dmy(day.date)}`,h,true)}
 function weekDoc(){const W=weeksOfMonth(),w=W[S.wk],[y]=S.cur.split('-'),ml=MEAL_ON();
   const h=apHead(y)+`<h1>Меню</h1><p class="subt">на тиждень з ${dmy(w.days[0].date)} по ${dmy(w.days[w.days.length-1].date)}</p>
   <table><thead><tr><th>День</th>${ml.map(m=>`<th>${MEALS[m]}</th>`).join('')}</tr></thead><tbody>${w.days.map(d=>`<tr><td class="l"><b>${dmy(d.date)}</b><br>${new Date(d.date+'T12:00').toLocaleDateString('uk-UA',{weekday:'long'})}</td>${ml.map(m=>`<td class="l">${d.dishes.filter(e=>e.m===m).map(e=>{const x=dishById(e.id);return x?`${dishLine(x,false)}<br><small>${fmtq(num(x.out[0]),0)} / ${fmtq(num(x.out[1]),0)} г</small>`:''}).join('<br>')}</td>`).join('')}</tr>`).join('')}</tbody></table>
@@ -806,11 +844,11 @@ function exportXlsx(){
   if(!window.XLSX){toast('Excel ще завантажується, спробуйте за мить');return}
   const [y,mm]=S.cur.split('-'),mon=MONTHS_GEN[+mm-1],t=monthTotals(),CP=costing().prod,wb=XLSX.utils.book_new();
   const add=(name,rows)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),name);
-  add('Звіт',[[`Звіт про харчування за ${mon} ${y}`],['Днів',t.days],['Дітоднів',t.kd[0]+t.kd[1]],['Вартість, грн',+t.cost.toFixed(2)],[],['Вікова група','Дітоднів','Сума, грн'],...AG.map((a,i)=>[a.c,t.kd[i],+t.gc[i].toFixed(2)]),[],['Група','Дітоднів','Сума, грн'],...groupStats().map(x=>[x.g.name,x.kd,+x.sum.toFixed(2)])]);
+  add('Звіт',[[`Звіт про харчування за ${mon} ${y}`],['Днів',t.days],['Дітоднів',t.kd[0]+t.kd[1]],['Вартість, грн',+t.cost.toFixed(2)],[],['Вікова група','Дітоднів','Сума, грн'],...AG.map((a,i)=>[a.c,t.kd[i],+t.gc[i].toFixed(2)]),[],['Група','Дітоднів','Сума, грн'],...groupStats().map(x=>[x.g.name,x.kd,+x.sum.toFixed(2)]),[],['Вікова категорія','Дітей','Дітоднів (табель)','Нараховано','Пільги','До сплати'],...acStats().map((o,i)=>[AC[i].c,o.kids,o.days,+o.full.toFixed(2),+o.ben.toFixed(2),+o.pay.toFixed(2)])]);
   add('Рух продуктів',[['Продукт','Од.','Залишок на поч.','Сума','Надійшло','Сума','Видано','Сума','Списано','Сума','Залишок на кін.','Сума'],...allProducts().filter(p=>CP[p]).map(p=>{const r=CP[p];return [p,su(p),+r.startQ.toFixed(3),+r.startS.toFixed(2),+r.inQ.toFixed(3),+r.inS.toFixed(2),+r.usedQ.toFixed(3),+r.usedS.toFixed(2),+r.wrQ.toFixed(3),+r.wrS.toFixed(2),+r.endQ.toFixed(3),+r.endS.toFixed(2)]})]);
   const m=month(),days=sortDays(m);
   add('Журнал',[['Дата','Прийом','Страва',...AG.map(a=>a.a+', дітей')],...days.flatMap(d=>{const k=K(d);return d.dishes.map(e=>[dmy(d.date),MEALS[e.m],dishById(e.id)?.name||'',k[0],k[1]])})]);
-  add('Табель',[['Дитина','Група','Вік','Пільга',...days.map(d=>dmy(d.date)),'Днів','Нараховано','Пільга','До сплати'],...S.meta.kids.map(x=>{const f=kidFee(x);const gg=GR().find(g=>g.id===x.grp);return [x.name,gg?.name||'',gg?AG[ageOf(x,gg)].s:'',catOf(x.cat)?.n||'',...days.map(d=>(m.tab[d.id]||{})[x.id]?1:''),f.days,+f.full.toFixed(2),+f.ben.toFixed(2),+f.pay.toFixed(2)]})]);
+  add('Табель',[['Дитина','Група','Вік','Пільга',...days.map(d=>dmy(d.date)),'Днів','Нараховано','Пільга','До сплати'],...S.meta.kids.map(x=>{const f=kidFee(x);const gg=GR().find(g=>g.id===x.grp);return [x.name,gg?.name||'',gg?AC[acK(x,gg)].c:'',catOf(x.cat)?.n||'',...days.map(d=>(m.tab[d.id]||{})[x.id]?1:''),f.days,+f.full.toFixed(2),+f.ben.toFixed(2),+f.pay.toFixed(2)]})]);
   add('Норми 305',[['Група продуктів',...AG.flatMap(a=>[a.a+' факт',a.a+' норма',a.a+' %'])],...normRows(days).map(({n,cells})=>[n.n,...cells.flatMap(c=>[+c.fact.toFixed(2),+c.target.toFixed(2),isFinite(c.pct)?Math.round(c.pct):''])])]);
   add('Страви',[['Страва','Прийом','Продукт',...AG.flatMap(a=>[a.a+' брутто',a.a+' нетто'])],...S.meta.dishes.flatMap(d=>d.items.map(it=>[d.name,MEALS[d.meal]||'',it.p,num(it.g[0]),netv(it,0),num(it.g[1]),netv(it,1)]))]);
   download(`Харчування ЗДО ${mon} ${y}.xlsx`,new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})],{type:'application/octet-stream'}));
@@ -818,11 +856,12 @@ function exportXlsx(){
 
 /* ================= події ================= */
 const $main=document.getElementById('main');
+$main.addEventListener('toggle',e=>{const d=e.target.dataset&&e.target.dataset.mb;if(d)S.openMB=e.target.open?d:(S.openMB===d?null:S.openMB)},true);
 let toastT;function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('on'),2200)}
 document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.tab=b.dataset.tab;S.confirm=null;try{localStorage.setItem('zdo_tab',S.tab)}catch(e){}render()});
 document.getElementById('banner').addEventListener('click',e=>{if(e.target.closest('[data-act="clearAll"]')){wipe();toast('Чистий аркуш. Почніть із вкладки «Заклад»')}});
 function wipe(){const old=[...(S.meta.months||[])];
-  S.meta={v:1,products:{},dishes:[],months:[],groups:[],kids:[],cats:DEF_CATS.map(([n,d])=>({id:uid(),n,d})),meals:['b','l','d'],fee:{mode:'pct',pct:60,fix:[0,0]},norms:{},inst:'',head:'',resp:'',nurse:'',accountant:'',comm:'',legend:'',costMethod:'fifo'};
+  S.meta={v:1,products:{},dishes:[],months:[],groups:[],kids:[],cats:DEF_CATS.map(([n,d])=>({id:uid(),n,d})),meals:['b','l','d'],fee:{mode:'pct',pct:60,fix:[0,0,0]},norms:{},inst:'',head:'',resp:'',nurse:'',accountant:'',comm:'',legend:'',costMethod:'fifo'};
   S.months={};S.example=false;try{old.forEach(k=>localStorage.removeItem('zdo_m-'+k))}catch(e){}
   dirty.add('meta');flush();S.tab='settings';render()}
 const dayOf=id=>month().days.find(d=>d.id===id);
@@ -871,6 +910,7 @@ $main.addEventListener('click',e=>{
     case 'wk':S.wk=+b.dataset.i;render();break;
     case 'normFile':download('Аналіз норм.html',normDoc());break;
     case 'normReset':M.norms={};go('meta');toast('Повернуто значення постанови');break;
+    case 'vymFile':{const d=dayOf(b.dataset.day);download(`Меню-вимога ${dmy(d.date)}.html`,vymDoc(d));break}
     case 'weekFile':download('Меню на тиждень.html',weekDoc());break;
     case 'brFile':download(`Журнал бракеражу ${MONTHS_GEN[+S.cur.split('-')[1]-1]}.html`,brakDoc());break;
     case 'brFill':{const m=month(),d=dayOf(S.bday),B=m.brak[d.id]||(m.brak[d.id]={});d.dishes.forEach((x,ix)=>{const v=B[ix]||(B[ix]={});v.t=v.t||MTIME[x.m];v.r=v.r||'ok';v.p=v.p??1});go(mk);break}
@@ -888,9 +928,9 @@ $main.addEventListener('click',e=>{
 $main.addEventListener('submit',e=>{e.preventDefault();const f=e.target,M=S.meta;
   if(f.id==='addProdForm'){const p=normName(f.querySelector('#newProd').value);if(!p)return;M.products[p]=M.products[p]||{unit:f.querySelector('#newUnit').value,price:0,grp:''};month().stock[p]=month().stock[p]||{buys:[]};S.openBuys=p;ensureMonthListed(S.cur);touch('meta','m-'+S.cur);render();return}
   if(f.classList.contains('buyform')){const p=f.dataset.p,q=num(f.q.value),pr=num(f.pr.value);if(!q){toast('Вкажіть кількість');return}const st=month().stock[p]||(month().stock[p]={buys:[]});st.buys=st.buys||[];st.buys.push({id:uid(),q,pr,date:f.d.value||''});if(pr)M.products[p]={...(M.products[p]||{unit:'г'}),price:pr};ensureMonthListed(S.cur);touch('meta','m-'+S.cur);render();return}
-  if(f.id==='addKidForm'){const names=f.querySelector('#newKid').value.split(/[,;\n]/).map(s=>s.trim()).filter(Boolean);if(!names.length)return;const cat=f.querySelector('#newKidCat').value;const ageEl=f.querySelector('#newKidAge'),age=ageEl?+ageEl.value:undefined;names.forEach(n=>M.kids.push({id:uid(),name:n,grp:S.tg,cat,...(ageEl?{age}:{})}));M.kids.sort((a,b)=>a.name.localeCompare(b.name,'uk'));touch('meta');render();toast(names.length>1?`Додано ${names.length} дітей`:'Дитину додано');return}
+  if(f.id==='addKidForm'){const names=f.querySelector('#newKid').value.split(/[,;\n]/).map(s=>s.trim()).filter(Boolean);if(!names.length)return;const cat=f.querySelector('#newKidCat').value;const ageEl=f.querySelector('#newKidAge'),ac=ageEl?+ageEl.value:undefined;names.forEach(n=>M.kids.push({id:uid(),name:n,grp:S.tg,cat,...(ageEl?{ac,age:AC[ac].n}:{})}));M.kids.sort((a,b)=>a.name.localeCompare(b.name,'uk'));touch('meta');render();toast(names.length>1?`Додано ${names.length} дітей`:'Дитину додано');return}
   if(f.id==='addDishForm'){const n=f.querySelector('#newDish').value.trim();if(!n)return;const d={id:uid(),name:n,meal:f.querySelector('#newDishMeal').value,ng:'',out:['',''],kcal:['',''],alg:'',items:[{p:'',g:['',''],n:['','']}]};M.dishes.push(d);S.openDish=d.id;touch('meta');render();return}
-  if(f.id==='addGroupForm'){const n=f.querySelector('#newGroup').value.trim();if(!n)return;const av=f.querySelector('#newGroupAge').value;M.groups.push({id:uid(),name:n,age:av==='mix'?1:+av,mixed:av==='mix',total:''});touch('meta');render();return}
+  if(f.id==='addGroupForm'){const n=f.querySelector('#newGroup').value.trim();if(!n)return;const av=f.querySelector('#newGroupAge').value;const ac=av==='mix'?2:+av;M.groups.push({id:uid(),name:n,ac,age:AC[ac].n,mixed:av==='mix',total:''});touch('meta');render();return}
   if(f.id==='addCatForm'){const n=f.querySelector('#newCat').value.trim();if(!n)return;M.cats.push({id:uid(),n,d:100});touch('meta');render();return}
 });
 $main.addEventListener('change',e=>{
@@ -929,9 +969,9 @@ $main.addEventListener('change',e=>{
     case 'feePct':M.fee.pct=num(v);go('meta');break;
     case 'feeFix':M.fee.fix[+el.dataset.i]=num(v);go('meta');break;
     case 'gname':{const g=GR().find(x=>x.id===el.dataset.g);g.name=v.trim()||g.name;go('meta');break}
-    case 'gmixed':{const g=GR().find(x=>x.id===el.dataset.g);g.mixed=el.checked;if(g.mixed)kidsOf(g.id).forEach(x=>{if(x.age!==0&&x.age!==1)x.age=g.age});go('meta','m-'+S.cur);break}
-    case 'kidAge':M.kids.find(x=>x.id===el.dataset.kid).age=+v;go('meta');break;
-    case 'gage':GR().find(x=>x.id===el.dataset.g).age=+v;go('meta');break;
+    case 'gmixed':{const g=GR().find(x=>x.id===el.dataset.g);if(el.checked)kidsOf(g.id).forEach(x=>{if(!(x.ac===0||x.ac===1||x.ac===2)){x.ac=acG(g);x.age=AC[x.ac].n}});g.mixed=el.checked;go('meta','m-'+S.cur);break}
+    case 'kidAge':{const x=M.kids.find(y=>y.id===el.dataset.kid);x.ac=+v;x.age=AC[+v].n;go('meta','m-'+S.cur);break}
+    case 'gage':{const g=GR().find(x=>x.id===el.dataset.g);g.ac=+v;g.age=AC[g.ac].n;go('meta','m-'+S.cur);break}
     case 'gfee':{const g=GR().find(x=>x.id===el.dataset.g);g.fee=v===''?'':num(v);go('meta');break}
     case 'gtotal':GR().find(x=>x.id===el.dataset.g).total=num(v)||'';go('meta');break;
     case 'catN':{const c=catOf(el.dataset.c);c.n=v.trim()||c.n;go('meta');break}
