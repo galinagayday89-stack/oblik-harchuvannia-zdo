@@ -171,6 +171,12 @@ table.buys input[type=number]{width:90px}
 .lst{display:grid;gap:6px}
 .lst .li{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .lst .li input[type=text],.lst .li input:not([type]){flex:1 1 220px}
+.pren{font:inherit;border:1px solid transparent;background:none;padding:3px 6px;min-width:140px;flex:1 1 140px;border-radius:6px}
+.pren:hover,.pren:focus{border-color:var(--line);background:var(--paper)}
+.pwarn{font-size:11px;color:var(--warn);white-space:normal;margin-top:2px;max-width:260px}
+.chip.empty{background:var(--warn-soft);color:var(--warn)}
+.li.grp{border:1px solid var(--line);border-radius:8px;padding:8px 10px;gap:8px 12px}
+.li.grp>input:first-child{font-weight:600}
 .credit{font-family:var(--f-display);font-weight:500;font-size:14px;color:var(--ink);margin-bottom:4px}
 footer{margin-top:30px;font-size:12px;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){.toast{transition:none}}
@@ -336,6 +342,8 @@ function applyData(meta,months){
 function month(k=S.cur){if(!S.months[k])S.months[k]={days:[],stock:{},tab:{},brak:{}};const m=S.months[k];m.tab=m.tab||{};m.brak=m.brak||{};return m}
 function ensureMonthListed(k){if(!S.meta.months.includes(k)){S.meta.months.push(k);S.meta.months.sort();touch('meta')}}
 const dishById=id=>S.meta.dishes.find(d=>d.id===id);
+const filledItems=d=>d.items.filter(i=>i.p&&(num(i.g[0])||num(i.g[1])));
+const dishFilled=d=>filledItems(d).length>0;
 const unitOf=p=>(S.meta.products[p]?.unit)||'г';
 const isPcs=p=>unitOf(p)==='шт';
 const isGr=p=>unitOf(p)==='гр';
@@ -411,9 +419,10 @@ function allProducts(){const set=new Set(Object.keys(S.meta.products));S.meta.di
 
 /* ---- плата батьків ---- */
 const catOf=id=>S.meta.cats.find(c=>c.id===id);
-function feePerDay(age,costPerChild){const f=S.meta.fee;return f.mode==='fix'?num(f.fix[age]):costPerChild*num(f.pct)/100}
+const hasGFee=g=>g&&g.fee!==undefined&&g.fee!==null&&String(g.fee).trim()!=='';
+function feePerDay(age,costPerChild,g){if(hasGFee(g))return num(g.fee);const f=S.meta.fee;return f.mode==='fix'?num(f.fix[age]):costPerChild*num(f.pct)/100}
 function kidFee(kid,k=S.cur){const g=GR().find(x=>x.id===kid.grp);if(!g)return {days:0,full:0,ben:0,pay:0};const m=month(k);let days=0,full=0;
-  m.days.forEach(d=>{const t=m.tab[d.id];if(t&&t[kid.id]){days++;const ag=ageOf(kid,g);full+=feePerDay(ag,dayCalc(d,k).perChild[ag])}});
+  m.days.forEach(d=>{const t=m.tab[d.id];if(t&&t[kid.id]){days++;const ag=ageOf(kid,g);full+=feePerDay(ag,dayCalc(d,k).perChild[ag],g)}});
   const disc=num(catOf(kid.cat)?.d);const ben=full*disc/100;return {days,full,ben,pay:full-ben}}
 
 /* ---- норми 305 ---- */
@@ -459,7 +468,7 @@ function rJournal(){
     const opts=ml=>{const a=S.meta.dishes.filter(d=>d.meal===ml),b=S.meta.dishes.filter(d=>d.meal!==ml),o=l=>l.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
       return (a.length?`<optgroup label="${MEALS[ml]}">${o(a)}</optgroup>`:'')+(b.length?`<optgroup label="Інші страви">${o(b)}</optgroup>`:'')};
     const meals=MEAL_ON().map(ml=>{
-      const chips=day.dishes.map((e,ix)=>{if(e.m!==ml)return '';const d=dishById(e.id);return d?`<span class="chip">${esc(d.name)}<button data-act="rmDish" data-day="${day.id}" data-ix="${ix}" aria-label="Прибрати ${esc(d.name)}">×</button></span>`:''}).join('');
+      const chips=day.dishes.map((e,ix)=>{if(e.m!==ml)return '';const d=dishById(e.id);return d?`<span class="chip ${dishFilled(d)?'':'empty'}" ${dishFilled(d)?'':'title="Склад страви не заповнено — продукти не списуються"'}>${dishFilled(d)?'':'⚠ '}${esc(d.name)}<button data-act="rmDish" data-day="${day.id}" data-ix="${ix}" aria-label="Прибрати ${esc(d.name)}">×</button></span>`:''}).join('');
       return `<div class="meal"><div class="mlab">${MEALS[ml]}</div><div class="chips">${chips}<select data-f="addDish" data-day="${day.id}" data-m="${ml}" aria-label="Додати страву на ${MEALS[ml].toLowerCase()}"><option value="">+ Страва</option>${opts(ml)}</select></div></div>`}).join('');
     const cin=(key,lab)=>`<label>${lab}<input type="number" min="0" step="1" value="${num((day.cnt||{})[key])||''}" placeholder="0" data-f="cnt" data-g="${key}" data-day="${day.id}"></label>`;
     const kidsIn=GR().length?GR().map(g=>{if(fromTab(day,g)){const a=grpAges(day,g);return `<label>${esc(g.name)} · ${gLabel(g)}<span class="kfix">${g.mixed?`${a[0]} + ${a[1]}`:grpCount(day,g)} <small>з табеля</small></span></label>`}
@@ -473,6 +482,7 @@ function rJournal(){
       </div>
       <div class="kids">${kidsIn}<label>Разом<span class="kfix">${c.kids[0]} + ${c.kids[1]}</span></label></div>
       <div class="meals">${meals}</div>
+      ${dayWarn(day,c)}
       ${c.rows.length?`<div class="pc">Вартість на 1 дитину: ${AG.map((a,i)=>`<span>${a.a}: <b>${fmt(c.perChild[i])} грн</b></span>`).join('')}</div>
       <details><summary>Продукти за день (${c.rows.length})</summary><div class="tw"><table>
         <thead><tr><th rowspan="2">Продукт</th>${AG.map(a=>`<th colspan="2" style="text-align:center">${a.a}</th>`).join('')}<th rowspan="2">Видано</th><th rowspan="2">Сума, грн</th></tr>
@@ -490,6 +500,14 @@ function rJournal(){
     ${days||`<div class="card empty">У ${MONTHS_LOC[+mm-1]} ще немає жодного дня. Натисніть «Додати день», виберіть страви на кожен прийом їжі та вкажіть кількість дітей у групах.${S.meta.dishes.length?'':'<br>Спершу заповніть вкладку «Страви».'}</div>`}`;
 }
 
+function dayWarn(day,c){
+  if(!day.dishes.length)return '';
+  const w=[];
+  const empty=[...new Set(day.dishes.map(e=>dishById(e.id)).filter(d=>d&&!dishFilled(d)).map(d=>d.name))];
+  if(empty.length)w.push(`Не заповнено склад: <b>${empty.map(esc).join(', ')}</b>. З цих страв продукти не списуються. Вкладка «Страви» → «Склад» → продукт і грами брутто на 1 дитину.`);
+  if(!c.kids[0]&&!c.kids[1])w.push('Не вказано, скільки дітей харчувалося. Впишіть кількість по групах або відмітьте дітей у табелі.');
+  return w.length?`<div class="infobox" style="margin:8px 0">${w.map(x=>`<p>⚠ ${x}</p>`).join('')}</div>`:''}
+
 /* ---- табель ---- */
 function rTabel(){
   const gs=GR();
@@ -504,7 +522,7 @@ function rTabel(){
       ${days.map(d=>`<td class="c"><input type="checkbox" ${t(d)[k.id]?'checked':''} data-f="tick" data-day="${d.id}" data-kid="${k.id}" aria-label="${esc(k.name)}, ${dmy(d.date)}"></td>`).join('')}
       <td>${f.days}</td><td>${fmt(f.full)}</td><td>${f.ben?fmt(f.ben):'—'}</td><td class="calc">${fmt(f.pay)}</td></tr>`}).join('');
   const foot=days.map(d=>{if(!fromTab(d,g))return '<td class="c"><span class="hint">—</span></td>';const a=grpAges(d,g);return `<td class="c">${g.mixed?`${a[0]}+${a[1]}`:a[0]+a[1]}</td>`}).join('');
-  const fee=S.meta.fee,feeTxt=fee.mode==='fix'?(g.mixed?`${fmt(fee.fix[0])} / ${fmt(fee.fix[1])} грн за день (ясла / садок)`:`${fmt(fee.fix[g.age])} грн за день`):`${fmtq(fee.pct,0)}% від вартості харчування за день`;
+  const fee=S.meta.fee,feeTxt=hasGFee(g)?`${fmt(num(g.fee))} грн за день (окрема плата цієї групи)`:fee.mode==='fix'?(g.mixed?`${fmt(fee.fix[0])} / ${fmt(fee.fix[1])} грн за день (ясла / садок)`:`${fmt(fee.fix[g.age])} грн за день`):`${fmtq(fee.pct,0)}% від вартості харчування за день`;
   return `<div class="row between">${monthNav()}</div>
     <div class="gsel" role="group" aria-label="Група">${gs.map(x=>`<button data-act="tg" data-g="${x.id}" aria-pressed="${x.id===g.id}">${esc(x.name)}<small>${gLabel(x)}</small></button>`).join('')}</div>
     ${g.mixed?'<p class="hint"><b>Різновікова група.</b> Біля кожної дитини виберіть вікову категорію — норми, вартість і плата рахуються окремо для ясельних і садкових дітей.</p>':''}
@@ -531,7 +549,7 @@ function rStock(){
     const del=S.confirm==='p:'+p?`<span class="confirm">${inMenu?`Є в ${inMenu} стр., звідти теж зникне. `:''}<button class="btn sm danger" data-act="delP" data-p="${esc(p)}">Видалити</button><button class="btn sm ghost" data-act="cancel">Ні</button></span>`
       :`<button class="btn sm ghost danger" data-act="ask" data-k="p:${esc(p)}" aria-label="Видалити продукт ${esc(p)}">×</button>`;
     const open=S.openBuys===p,nb=buysOf(p).length,end=r.endQ;
-    let html=`<tr class="${open?'opened':''}"><td class="name"><div class="pn"><span>${esc(p)} ${inMenu?'':'<span class="badge">не в стравах</span>'}</span>${del}</div></td>
+    let html=`<tr class="${open?'opened':''}"><td class="name"><div class="pn"><input class="pren" value="${esc(p)}" data-f="rename" data-p="${esc(p)}" aria-label="Назва продукту ${esc(p)}" title="Виправте назву. Якщо впишете назву іншого продукту — вони обʼєднаються">${del}</div>${inMenu?'':'<span class="badge" title="Цього продукту немає в жодній страві, тому «Видано» для нього не рахується">не в стравах</span>'}</td>
       <td><select data-f="unit" data-p="${esc(p)}" aria-label="Одиниця">${UNITS.map(([v,l])=>`<option value="${v}" ${unitOf(p)===v?'selected':''}>${l}</option>`).join('')}</select></td>
       <td>${fmtq(r.startQ)}${r.manual?' ✎':''}</td><td class="sum">${fmt(r.startS)}</td><td>${fmtq(r.inQ)}</td><td class="sum">${fmt(r.inS)}</td>
       <td class="calc">${fmtq(r.usedQ)}</td><td class="calc sum">${fmt(r.usedS)}</td>
@@ -667,10 +685,11 @@ function rMenu(){
   const ps=allProducts();
   const cards=S.meta.dishes.map((d,di)=>{const open=S.openDish===d.id;
     const head=`<div class="dhead"><span class="dnum">${di+1}</span><input class="dname" value="${esc(d.name)}" data-f="dname" data-d="${d.id}" aria-label="Назва страви">
-      <span class="dmeta">${MEALS[d.meal]||''} · ${fmtq(num(d.out[0]),0)} / ${fmtq(num(d.out[1]),0)} г${d.ng?' · '+esc(NDEF.find(n=>n.k===d.ng)?.n||''):''}</span>
-      <div class="dact"><button class="btn sm ${open?'pri':''}" data-act="openDish" data-d="${d.id}" aria-expanded="${open}">${open?'Згорнути':`Склад (${d.items.length})`}</button><button class="btn sm" data-act="dupDish" data-d="${d.id}">Копія</button>${confirmBtn('dish'+d.id,'Видалити',`data-act="rmDishCat" data-d="${d.id}"`)}</div></div>`;
+      <span class="dmeta">${MEALS[d.meal]||''} · ${fmtq(num(d.out[0]),0)} / ${fmtq(num(d.out[1]),0)} г${d.ng?' · '+esc(NDEF.find(n=>n.k===d.ng)?.n||''):''}</span>${dishFilled(d)?'':'<span class="pill bad">склад не заповнено</span>'}
+      <div class="dact"><button class="btn sm ${open?'pri':''}" data-act="openDish" data-d="${d.id}" aria-expanded="${open}">${open?'Згорнути':`Склад (${filledItems(d).length})`}</button><button class="btn sm" data-act="dupDish" data-d="${d.id}">Копія</button>${confirmBtn('dish'+d.id,'Видалити',`data-act="rmDishCat" data-d="${d.id}"`)}</div></div>`;
     if(!open)return `<article class="card dish">${head}</article>`;
-    const items=d.items.map((it,ii)=>`<tr><td class="n">${ii+1}</td><td><input class="pname" list="plist" value="${esc(it.p)}" data-f="ip" data-d="${d.id}" data-ii="${ii}" aria-label="Продукт"></td>
+    const CPm=costing().prod,noStock=p=>{const r=CPm[p];return !r||(r.startQ+r.inQ)<=1e-9};
+    const items=d.items.map((it,ii)=>`<tr><td class="n">${ii+1}</td><td><input class="pname" list="plist" value="${esc(it.p)}" data-f="ip" data-d="${d.id}" data-ii="${ii}" aria-label="Продукт">${it.p&&noStock(it.p)?`<div class="pwarn">немає приходу в ${MONTHS_LOC[+S.cur.split('-')[1]-1]} — перевірте, чи назва збігається з розходом</div>`:''}</td>
       <td><select data-f="pgrp" data-p="${esc(it.p)}" ${it.p?'':'disabled'} aria-label="Група за 305">${ngOpts(grpP(it.p),'—')}</select></td>
       ${[0,1].map(i=>`<td><input type="number" step="any" min="0" value="${it.g[i]||''}" data-f="ig" data-d="${d.id}" data-ii="${ii}" data-i="${i}" aria-label="Брутто ${AG[i].a}"></td><td><input type="number" step="any" min="0" value="${it.n[i]??''}" placeholder="${it.g[i]||''}" data-f="in" data-d="${d.id}" data-ii="${ii}" data-i="${i}" aria-label="Нетто ${AG[i].a}"></td>`).join('')}
       <td>${it.p?(isPcs(it.p)?'шт':'г'):''}</td><td><button class="btn sm ghost danger" data-act="rmItem" data-d="${d.id}" data-ii="${ii}" aria-label="Прибрати інгредієнт">×</button></td></tr>`).join('');
@@ -691,6 +710,7 @@ function rMenu(){
     <form class="row" id="addDishForm" style="margin:12px 0"><input id="newDish" placeholder="Назва нової страви" autocomplete="off" style="flex:1;min-width:200px;max-width:340px" aria-label="Назва страви">
       <select id="newDishMeal" aria-label="Прийом їжі">${MORDER.map(m=>`<option value="${m}">${MEALS[m]}</option>`).join('')}</select><button class="btn pri" type="submit">+ Додати страву</button></form>
     <datalist id="plist">${ps.map(p=>`<option value="${esc(p)}">`).join('')}</datalist>
+    ${(()=>{const e=S.meta.dishes.filter(d=>!dishFilled(d));return e.length?`<div class="infobox"><p><b>⚠ Страв без складу: ${e.length}.</b> Поки не вписано продукти та грами брутто на 1 дитину, програма не списує продукти з цих страв у «Розході». Натисніть «Склад» біля страви з червоною позначкою.</p></div>`:''})()}
     ${cards||'<div class="card empty">Ще немає страв.</div>'}`;
 }
 
@@ -709,12 +729,15 @@ function rSettings(){
         ${f.mode!=='fix'?`<label class="lab">Відсоток, %<input type="number" min="0" max="100" step="any" value="${f.pct}" data-f="feePct"></label>`:''}
         <label class="chk"><input type="radio" name="feeMode" data-f="feeMode" value="fix" ${f.mode==='fix'?'checked':''}> Фіксована сума за день</label>
         ${f.mode==='fix'?`<div class="row">${AG.map((a,i)=>`<label class="lab">${a.a}, грн<input type="number" min="0" step="any" value="${f.fix[i]||''}" data-f="feeFix" data-i="${i}"></label>`).join('')}</div>`:''}</div>
+      <p class="hint">Якщо в групах різна плата (наприклад, три вартості), вкажіть її в картці «Групи садочка» навпроти кожної групи — вона діятиме замість загальної.</p>
       <p class="hint">Розмір плати і пільги встановлює засновник (рішення сільської, селищної, міської ради).</p></div>
-    <div class="card"><h2>Групи садочка</h2><div class="lst">${GR().map(g=>`<div class="li"><input value="${esc(g.name)}" data-f="gname" data-g="${g.id}" aria-label="Назва групи">
+    <div class="card"><h2>Групи садочка</h2><div class="lst">${GR().map(g=>`<div class="li grp"><input value="${esc(g.name)}" data-f="gname" data-g="${g.id}" aria-label="Назва групи">
         <select data-f="gage" data-g="${g.id}" aria-label="Вік" ${g.mixed?'title="Для різновікової групи — вік нових дітей за замовчуванням"':''}>${AG.map((a,i)=>`<option value="${i}" ${g.age===i?'selected':''}>${g.mixed?'за замовч.: ':''}${a.c}</option>`).join('')}</select>
         <label class="chk"><input type="checkbox" data-f="gmixed" data-g="${g.id}" ${g.mixed?'checked':''}> різновікова</label>
-        <input type="number" min="0" value="${g.total||''}" placeholder="за списком" data-f="gtotal" data-g="${g.id}" aria-label="Дітей за списком" style="width:96px">
+        <label class="lab" style="flex-direction:row;align-items:center;gap:4px">дітей<input type="number" min="0" value="${g.total||''}" placeholder="—" data-f="gtotal" data-g="${g.id}" aria-label="Дітей за списком" style="width:64px"></label>
+        <label class="lab" style="flex-direction:row;align-items:center;gap:4px">плата<input type="number" min="0" step="any" value="${hasGFee(g)?g.fee:''}" placeholder="загальна" data-f="gfee" data-g="${g.id}" aria-label="Плата батьків за день для групи ${esc(g.name)}, грн" style="width:90px">грн/день</label>
         ${confirmBtn('grp'+g.id,'Видалити',`data-act="rmGroup" data-g="${g.id}"`)}</div>`).join('')||'<p class="hint">Ще немає груп.</p>'}</div>
+      <p class="hint"><b>Плата</b> — окрема сума за день для групи (наприклад, коли у закладі три різні вартості). Порожньо — діє загальна плата з картки «Плата батьків».</p>
       <p class="hint">Різновікова група — коли разом діти ясельного і садкового віку. Вік кожної дитини вказується в табелі, а без табеля в журналі вводиться окремо кількість ясельних і садкових дітей.</p>
       <form class="row" id="addGroupForm" style="margin-top:10px"><input id="newGroup" placeholder="Назва групи, напр. Ромашка" autocomplete="off" aria-label="Назва групи"><select id="newGroupAge" aria-label="Вік">${AG.map((a,i)=>`<option value="${i}">${a.a}</option>`).join('')}<option value="mix">Різновікова</option></select><button class="btn pri sm" type="submit">+ Група</button></form></div>
     <div class="card"><h2>Пільгові категорії</h2><div class="lst">${M.cats.map(c=>`<div class="li"><input value="${esc(c.n)}" data-f="catN" data-c="${c.id}" aria-label="Категорія"><label class="lab" style="flex-direction:row;align-items:center">знижка<input type="number" min="0" max="100" step="any" value="${c.d}" data-f="catD" data-c="${c.id}" style="width:70px" aria-label="Знижка, %">%</label>
@@ -803,6 +826,22 @@ function wipe(){const old=[...(S.meta.months||[])];
   S.months={};S.example=false;try{old.forEach(k=>localStorage.removeItem('zdo_m-'+k))}catch(e){}
   dirty.add('meta');flush();S.tab='settings';render()}
 const dayOf=id=>month().days.find(d=>d.id===id);
+/* перейменування продукту; якщо нова назва вже є — продукти обʼєднуються */
+function renameProduct(old,nv){
+  const n=normName(nv),M=S.meta;if(!n||n===old)return '';
+  const exists=!!M.products[n]||Object.values(S.months).some(m=>m.stock&&m.stock[n])||M.dishes.some(d=>d.items.some(i=>i.p===n));
+  const po=M.products[old]||{},pn=M.products[n];
+  M.products[n]=pn?{...po,...pn,price:pn.price||po.price,grp:pn.grp||po.grp}:po;delete M.products[old];
+  M.dishes.forEach(d=>d.items.forEach(i=>{if(i.p===old)i.p=n}));
+  Object.values(S.months).forEach(m=>{
+    if(m.stock&&m.stock[old]){const a=m.stock[old],b=m.stock[n];
+      if(!b)m.stock[n]=a;else{b.buys=[...(b.buys||[]),...(a.buys||[])];b.written=num(b.written)+num(a.written)||'';
+        if((a.start!==undefined&&a.start!=='')||(b.start!==undefined&&b.start!=='')){const q=num(a.start)+num(b.start);b.startPr=q?(num(a.start)*num(a.startPr)+num(b.start)*num(b.startPr))/q:0;b.start=q}}
+      delete m.stock[old]}
+    ['end'].forEach(f=>{if(m[f]&&m[f][old]!==undefined){m[f][n]=num(m[f][n])+num(m[f][old]);delete m[f][old]}});
+    if(m.endLots&&m.endLots[old]){m.endLots[n]=[...(m.endLots[n]||[]),...m.endLots[old]];delete m.endLots[old]}
+  });
+  return exists?`«${old}» обʼєднано з «${n}»`:`Перейменовано на «${n}»`}
 const dish=id=>dishById(id);
 function newDay(date,from){const m=month();const d={id:uid(),date,dishes:from?from.dishes.map(x=>({...x})):[],kids:from?[...(from.kids||[0,0])]:[0,0],cnt:from?{...(from.cnt||{})}:{}};m.days.push(d);ensureMonthListed(S.cur);return d}
 function nextFree(after){const [y,mm]=S.cur.split('-').map(Number),last=new Date(y,mm,0).getDate(),used=new Set(month().days.map(d=>d.date));
@@ -867,6 +906,7 @@ $main.addEventListener('change',e=>{
     case 'addDish':if(v){day.dishes.push({id:v,m:el.dataset.m});go(mk)}break;
     case 'tick':{const m=month(),t=m.tab[day.id]||(m.tab[day.id]={}),kid=M.kids.find(x=>x.id===el.dataset.kid);if(el.checked)t[kid.id]=1;else delete t[kid.id];t['g:'+kid.grp]=1;go(mk);break}
     case 'kidCat':M.kids.find(x=>x.id===el.dataset.kid).cat=v;go('meta');break;
+    case 'rename':{const ok=renameProduct(el.dataset.p,v);if(ok){S.confirm=null;S.openBuys=null;Object.keys(S.months).forEach(k=>dirty.add('m-'+k));go('meta',mk);toast(ok)}else render();break}
     case 'unit':M.products[el.dataset.p]={...(M.products[el.dataset.p]||{}),unit:v};go('meta',mk);break;
     case 'written':case 'start':case 'startPr':{const st=month().stock[el.dataset.p]||(month().stock[el.dataset.p]={buys:[]});st[f]=f==='start'?(v===''?'':num(v)):num(v);ensureMonthListed(S.cur);go(mk);break}
     case 'bdate':case 'bq':case 'bpr':{const b=month().stock[el.dataset.p].buys.find(x=>x.id===el.dataset.b);b[{bdate:'date',bq:'q',bpr:'pr'}[f]]=f==='bdate'?v:num(v);go(mk);break}
@@ -892,6 +932,7 @@ $main.addEventListener('change',e=>{
     case 'gmixed':{const g=GR().find(x=>x.id===el.dataset.g);g.mixed=el.checked;if(g.mixed)kidsOf(g.id).forEach(x=>{if(x.age!==0&&x.age!==1)x.age=g.age});go('meta','m-'+S.cur);break}
     case 'kidAge':M.kids.find(x=>x.id===el.dataset.kid).age=+v;go('meta');break;
     case 'gage':GR().find(x=>x.id===el.dataset.g).age=+v;go('meta');break;
+    case 'gfee':{const g=GR().find(x=>x.id===el.dataset.g);g.fee=v===''?'':num(v);go('meta');break}
     case 'gtotal':GR().find(x=>x.id===el.dataset.g).total=num(v)||'';go('meta');break;
     case 'catN':{const c=catOf(el.dataset.c);c.n=v.trim()||c.n;go('meta');break}
     case 'catD':catOf(el.dataset.c).d=Math.min(100,Math.max(0,num(v)));go('meta');break;
